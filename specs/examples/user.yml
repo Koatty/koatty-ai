@@ -1,0 +1,71 @@
+module: user
+table: users
+fields:
+  id:
+    type: number
+    primary: true
+    auto: true
+  username:
+    type: string
+    length: 50
+    unique: true
+    required: true
+  email:
+    type: string
+    format: email
+    nullable: true
+  passwordHash:
+    type: string
+    length: 255
+    private: true
+  status:
+    type: enum
+    values: [active, inactive, banned]
+    default: active
+  createdAt:
+    type: datetime
+    auto: true
+  updatedAt:
+    type: datetime
+    auto: true
+
+api:
+  basePath: /users
+  endpoints:
+    - method: GET
+      path: /
+      action: list
+      pagination: true
+      search: [username, email]
+    - method: POST
+      path: /
+      action: create
+      auth: true
+      roles: [admin]
+    - method: GET
+      path: /:id
+      action: detail
+    - method: PUT
+      path: /:id
+      action: update
+      auth: true
+    - method: DELETE
+      path: /:id
+      action: remove
+      auth: true
+      roles: [admin]
+
+dto:
+  create: [username, email, password]
+  update: [email, password, status]
+  query: [username, email, status, page, pageSize]
+
+auth:
+  enabled: true
+  defaultRoles: [user]
+
+features:
+  softDelete: true
+  pagination: true
+  search: true
+  audit: true
