@@ -23,6 +23,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@types/handlebars": "^4.0.40",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.19.30",
     "@typescript-eslint/eslint-plugin": "^8.53.1",
@@ -41,6 +42,7 @@
   "dependencies": {
     "chalk": "^4.1.2",
     "commander": "^14.0.2",
+    "handlebars": "^4.7.8",
     "yaml": "^2.8.2"
   }
 }
