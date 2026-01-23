@@ -1,0 +1,49 @@
+import { Controller, Get, Post, Put, Delete, PathVariable, Body, Query, BaseController } from 'koatty';
+import { {{pascalCase module}}Service } from '../service/{{pascalCase module}}Service';
+import { Create{{pascalCase module}}Dto, Update{{pascalCase module}}Dto, Query{{pascalCase module}}Dto } from
+'../dto/{{pascalCase module}}Dto';
+{{#if auth.enabled}}
+import { Auth, Roles } from '@/decorators/auth';
+{{/if}}
+
+@Controller('{{#if api.basePath}}{{api.basePath}}{{else}}/{{module}}s{{/if}}')
+export class {{pascalCase module}}Controller extends BaseController {
+constructor(private {{camelCase module}}Service: {{pascalCase module}}Service) {
+super();
+}
+
+@Get('/')
+{{#if auth.enabled}}@Auth(){{/if}}
+async list(@Query() query: Query{{pascalCase module}}Dto) {
+const data = await this.{{camelCase module}}Service.findAll(query);
+return this.ok(data);
+}
+
+@Get('/:id')
+async detail(@PathVariable('id') id: number) {
+const data = await this.{{camelCase module}}Service.findById(id);
+return this.ok(data);
+}
+
+@Post('/')
+{{#if auth.enabled}}@Auth(){{/if}}
+async create(@Body() dto: Create{{pascalCase module}}Dto) {
+const data = await this.{{camelCase module}}Service.create(dto);
+return this.ok(data);
+}
+
+@Put('/:id')
+{{#if auth.enabled}}@Auth(){{/if}}
+async update(@PathVariable('id') id: number, @Body() dto: Update{{pascalCase module}}Dto) {
+const data = await this.{{camelCase module}}Service.update(id, dto);
+return this.ok(data);
+}
+
+@Delete('/:id')
+{{#if auth.enabled}}@Auth(){{/if}}
+{{#if auth.defaultRoles}}@Roles({{json auth.defaultRoles}}){{/if}}
+async remove(@PathVariable('id') id: number) {
+await this.{{camelCase module}}Service.{{#if features.softDelete}}softDelete{{else}}delete{{/if}}(id);
+return this.ok();
+}
+}

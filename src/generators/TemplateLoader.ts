@@ -22,7 +22,7 @@ export class TemplateLoader {
     }
 
     const source = fs.readFileSync(fullPath, 'utf-8');
-    return Handlebars.compile(source);
+    return Handlebars.compile(source, { noEscape: true });
   }
 
   /**
