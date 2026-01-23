@@ -1,0 +1,33 @@
+{
+  "name": "koatty-ai",
+  "version": "0.1.0",
+  "description": "Intelligent scaffolding tool for Koatty framework",
+  "main": "dist/index.js",
+  "bin": {
+    "koatty-ai": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/cli/index.ts",
+    "test": "jest",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "koatty",
+    "scaffolding",
+    "code-generator",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
