@@ -4,28 +4,22 @@
  * Koatty AI CLI Entry Point
  */
 
-import { version } from '../../package.json';
+import { Command } from 'commander';
+import { version, description } from '../../package.json';
 
-function main() {
-  const args = process.argv.slice(2);
+const program = new Command();
 
-  // Handle --version flag
-  if (args.includes('--version') || args.includes('-v')) {
-    console.log(`koatty-ai version ${version}`);
-    process.exit(0);
-  }
+program
+  .name('koatty-ai')
+  .description(description)
+  .version(version, '-v, --version', 'Output the current version');
 
-  // Handle --help flag
-  if (args.includes('--help') || args.includes('-h')) {
-    console.log('Koatty AI - Intelligent scaffolding tool for Koatty framework');
-    console.log('');
-    console.log('Usage: koatty-ai [command] [options]');
-    console.log('');
-    console.log('Commands will be available in upcoming tasks');
-    process.exit(0);
-  }
+// Commands will be added in subsequent tasks
 
-  console.log('Koatty AI CLI initialized. Use --help for more information.');
+program.parse(process.argv);
+
+// Show help if no command provided
+if (!process.argv.slice(2).length) {
+  program.outputHelp();
 }
 
-main();
