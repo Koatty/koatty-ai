@@ -1,0 +1,21 @@
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+
+@Entity('{{#if table}}{{table}}{{else}}{{module}}s{{/if}}')
+export class {{pascalCase module}} {
+  {{#each fields}}
+  {{#if primary}}
+  @PrimaryGeneratedColumn()
+  {{else}}
+  @Column({
+    type: '{{type}}',
+    {{#if unique}}unique: true,{{/if}}
+    {{#if required}}nullable: false,{{else}}nullable: true,{{/if}}
+    {{#if length}}length: {{length}},{{/if}}
+    {{#if default}}default: {{#if (eq type 'string')}}'{{default}}'{{else}}{{default}}{{/if}},{{/if}}
+    {{#if comment}}comment: '{{comment}}',{{/if}}
+  })
+  {{/if}}
+  {{@key}}: {{#if (eq type 'number')}}number{{else if (eq type 'boolean')}}boolean{{else if (eq type 'datetime')}}Date{{else}}string{{/if}};
+
+  {{/each}}
+}
