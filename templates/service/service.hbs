@@ -1,0 +1,62 @@
+import { BaseService } from 'koatty';
+import { InjectRepository } from 'koatty-typeorm';
+import { Repository } from 'typeorm';
+import { {{pascalCase module}} } from '../model/{{pascalCase module}}';
+import { Create{{pascalCase module}}Dto, Update{{pascalCase module}}Dto, Query{{pascalCase module}}Dto } from
+'../dto/{{pascalCase module}}Dto';
+
+export class {{pascalCase module}}Service extends BaseService {
+@InjectRepository({{pascalCase module}})
+private repository: Repository<{{pascalCase module}}>;
+
+  /**
+  * Find all entries with pagination and search
+  */
+  async findAll(query: Query{{pascalCase module}}Dto) {
+  const { page = 1, pageSize = 10, ...filters } = query;
+  return this.repository.findAndCount({
+  where: filters,
+  skip: (page - 1) * pageSize,
+  take: pageSize,
+  });
+  }
+
+  /**
+  * Find by ID
+  */
+  async findById(id: number) {
+  return this.repository.findOneBy({ id: id as any });
+  }
+
+  /**
+  * Create new entry
+  */
+  async create(dto: Create{{pascalCase module}}Dto) {
+  const entity = this.repository.create(dto as any);
+  return this.repository.save(entity);
+  }
+
+  /**
+  * Update entry
+  */
+  async update(id: number, dto: Update{{pascalCase module}}Dto) {
+  await this.repository.update(id, dto as any);
+  return this.findById(id);
+  }
+
+  /**
+  * Delete entry
+  */
+  async delete(id: number) {
+  return this.repository.delete(id);
+  }
+
+  {{#if features.softDelete}}
+  /**
+  * Soft delete entry
+  */
+  async softDelete(id: number) {
+  return this.repository.softDelete(id);
+  }
+  {{/if}}
+  }
