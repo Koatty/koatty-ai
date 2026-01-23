@@ -33,7 +33,8 @@ export abstract class BaseGenerator {
    */
   protected getOutputPath(subDir: string, suffix: string = '', ext: string = '.ts'): string {
     const pascalName = this.toPascalCase(this.spec.module);
-    return `src/${subDir}/${pascalName}${suffix}${ext}`;
+    const moduleName = this.spec.module.toLowerCase();
+    return `src/${moduleName}/${subDir}/${pascalName}${suffix}${ext}`;
   }
 
   /**

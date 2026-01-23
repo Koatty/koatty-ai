@@ -43,6 +43,9 @@
     "chalk": "^4.1.2",
     "commander": "^14.0.2",
     "handlebars": "^4.7.8",
+    "ora": "^5.4.1",
+    "simple-git": "^3.30.0",
+    "ts-morph": "^27.0.2",
     "yaml": "^2.8.2"
   }
 }

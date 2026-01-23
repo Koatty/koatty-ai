@@ -31,12 +31,13 @@ export class TemplateLoader {
   public static registerHelpers(): void {
     Handlebars.registerHelper('pascalCase', (str: string) => {
       if (!str) return '';
-      return str.replace(/(?:^|[-_])(\w)/g, (_, c) => c.toUpperCase());
+      return str.toLowerCase().replace(/(?:^|[-_])(\w)/g, (_, c) => c.toUpperCase());
     });
 
     Handlebars.registerHelper('camelCase', (str: string) => {
       if (!str) return '';
-      return str.replace(/(?:^|[-_])(\w)/g, (g, c, i) => i === 0 ? c.toLowerCase() : g[1].toUpperCase());
+      const s = str.toLowerCase().replace(/(?:^|[-_])(\w)/g, (_, c) => c.toUpperCase());
+      return s.charAt(0).toLowerCase() + s.slice(1);
     });
 
     Handlebars.registerHelper('eq', (a: any, b: any) => a === b);

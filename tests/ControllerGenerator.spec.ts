@@ -19,7 +19,7 @@ describe('ControllerGenerator', () => {
 
     const changes = cs.getChanges();
     expect(changes.length).toBe(1);
-    expect(changes[0].path).toBe('src/controller/UserController.ts');
+    expect(changes[0].path).toBe('src/user/controller/UserController.ts');
     expect(changes[0].content).toContain("@Controller('/v1/users')");
     expect(changes[0].content).toContain('class UserController extends BaseController');
     expect(changes[0].content).toContain('@Auth()');

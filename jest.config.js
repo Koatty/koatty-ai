@@ -15,5 +15,6 @@ module.exports = {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   moduleFileExtensions: ['ts', 'js', 'json'],
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/src/types/'],
   verbose: true,
 };
