@@ -7,7 +7,7 @@ describe('DtoGenerator', () => {
     const spec: Spec = {
       module: 'user',
       fields: {
-        username: { type: 'string', required: true }
+        username: { name: 'username', type: 'string', required: true }
       }
     };
     const cs = new ChangeSet(spec.module);
