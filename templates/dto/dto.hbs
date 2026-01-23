@@ -1,0 +1,59 @@
+import { IsString, IsNumber, IsBoolean, IsOptional, IsEnum, MinLength, MaxLength } from 'class-validator';
+
+/**
+* Create {{pascalCase module}} DTO
+*/
+export class Create{{pascalCase module}}Dto {
+{{#each fields}}
+{{#unless primary}}
+{{#unless auto}}
+{{#if required}}
+@{{#if (eq type 'string')}}IsString(){{else if (eq type 'number')}}IsNumber(){{else if (eq type
+'boolean')}}IsBoolean(){{else}}IsString(){{/if}}
+{{#if length}}
+@MaxLength({{length}})
+{{/if}}
+{{else}}
+@IsOptional()
+{{/if}}
+{{@key}}: {{#if (eq type 'number')}}number{{else if (eq type 'boolean')}}boolean{{else}}string{{/if}};
+
+{{/unless}}
+{{/unless}}
+{{/each}}
+}
+
+/**
+* Update {{pascalCase module}} DTO
+*/
+export class Update{{pascalCase module}}Dto {
+{{#each fields}}
+{{#unless primary}}
+{{#unless auto}}
+@IsOptional()
+{{@key}}?: {{#if (eq type 'number')}}number{{else if (eq type 'boolean')}}boolean{{else}}string{{/if}};
+
+{{/unless}}
+{{/unless}}
+{{/each}}
+}
+
+/**
+* Query {{pascalCase module}} DTO
+*/
+export class Query{{pascalCase module}}Dto {
+@IsOptional()
+@IsNumber()
+page?: number;
+
+@IsOptional()
+@IsNumber()
+pageSize?: number;
+
+{{#each fields}}
+{{#if search}}
+@IsOptional()
+{{@key}}?: {{#if (eq type 'number')}}number{{else if (eq type 'boolean')}}boolean{{else}}string{{/if}};
+{{/if}}
+{{/each}}
+}
