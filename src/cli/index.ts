@@ -6,6 +6,7 @@
 
 import { Command } from 'commander';
 import { version, description } from '../../package.json';
+import { registerGenerateCommand } from './commands/generate';
 
 const program = new Command();
 
@@ -14,7 +15,8 @@ program
   .description(description)
   .version(version, '-v, --version', 'Output the current version');
 
-// Commands will be added in subsequent tasks
+// Register commands
+registerGenerateCommand(program);
 
 program.parse(process.argv);
 
