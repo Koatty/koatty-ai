@@ -33,4 +33,27 @@ describe('ChangeSet and FileChange', () => {
     expect(json.id).toBeDefined();
     expect(json.timestamp).toBeDefined();
   });
+
+  it('should save and load a ChangeSet', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const tempDir = path.join(__dirname, 'temp_changesets');
+
+    const cs = new ChangeSet('user');
+    cs.createFile('src/auth.ts', 'export class Auth {}');
+    const filePath = cs.save(tempDir);
+
+    expect(fs.existsSync(filePath)).toBe(true);
+
+    const loadedCs = ChangeSet.load(filePath);
+    expect(loadedCs.id).toBe(cs.id);
+    expect(loadedCs.module).toBe('user');
+    expect(loadedCs.getChanges().length).toBe(1);
+    expect(loadedCs.getChanges()[0].path).toBe('src/auth.ts');
+
+    // Cleanup
+    fs.unlinkSync(filePath);
+    fs.rmdirSync(tempDir);
+  });
 });
+
