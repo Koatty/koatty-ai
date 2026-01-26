@@ -1,5 +1,4 @@
 import { execSync } from 'child_process';
-import * as path from 'path';
 import * as fs from 'fs';
 
 /**
@@ -22,12 +21,15 @@ export class QualityService {
    */
   static lintFile(filePath: string): { success: boolean; output: string } {
     try {
-      const output = execSync(`npx eslint "${filePath}" --fix`, { encoding: 'utf-8', stdio: 'pipe' });
+      const output = execSync(`npx eslint "${filePath}" --fix`, {
+        encoding: 'utf-8',
+        stdio: 'pipe',
+      });
       return { success: true, output };
     } catch (error) {
       return {
         success: false,
-        output: (error as any).stdout?.toString() || (error as any).message
+        output: (error as any).stdout?.toString() || (error as any).message,
       };
     }
   }
@@ -42,7 +44,7 @@ export class QualityService {
     } catch (error) {
       return {
         success: false,
-        output: (error as any).stdout?.toString() || (error as any).message
+        output: (error as any).stdout?.toString() || (error as any).message,
       };
     }
   }
@@ -50,11 +52,15 @@ export class QualityService {
   /**
    * Run format and lint on a list of files.
    */
-  static processFiles(filePaths: string[]): { formatted: string[]; linted: string[]; errors: string[] } {
+  static processFiles(filePaths: string[]): {
+    formatted: string[];
+    linted: string[];
+    errors: string[];
+  } {
     const report = {
       formatted: [] as string[],
       linted: [] as string[],
-      errors: [] as string[]
+      errors: [] as string[],
     };
 
     for (const file of filePaths) {

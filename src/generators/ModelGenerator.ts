@@ -11,6 +11,10 @@ export class ModelGenerator extends BaseGenerator {
     const outputPath = this.getOutputPath('model');
     const content = this.render('model/model.hbs', this.spec);
 
-    this.changeset.createFile(outputPath, content, `Generate TypeORM model for ${this.spec.module}`);
+    this.changeset.createFile(
+      outputPath,
+      content,
+      `Generate TypeORM model for ${this.spec.module}`
+    );
   }
 }

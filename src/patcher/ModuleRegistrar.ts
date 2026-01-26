@@ -1,4 +1,4 @@
-import { SourceFile, SyntaxKind, ArrayLiteralExpression, Decorator, ObjectLiteralExpression } from 'ts-morph';
+import { SourceFile, SyntaxKind, ArrayLiteralExpression, ObjectLiteralExpression } from 'ts-morph';
 import { AstPatcher } from './AstPatcher';
 import { ChangeSet } from '../changeset/ChangeSet';
 
@@ -52,11 +52,15 @@ export class ModuleRegistrar extends AstPatcher {
   /**
    * Register a class in the @Module decorator
    */
-  private registerInDecorator(sourceFile: SourceFile, propertyName: string, className: string): void {
+  private registerInDecorator(
+    sourceFile: SourceFile,
+    propertyName: string,
+    className: string
+  ): void {
     const classDec = sourceFile.getClasses()[0];
     if (!classDec) return;
 
-    const moduleDecorator = classDec.getDecorators().find(d => d.getName() === 'Module');
+    const moduleDecorator = classDec.getDecorators().find((d) => d.getName() === 'Module');
     if (!moduleDecorator) return;
 
     const callExpr = moduleDecorator.getCallExpression();
@@ -82,7 +86,7 @@ export class ModuleRegistrar extends AstPatcher {
     if (property && property.getKind() === SyntaxKind.PropertyAssignment) {
       const initializer = (property as any).getInitializer() as ArrayLiteralExpression;
       if (initializer && initializer.getKind() === SyntaxKind.ArrayLiteralExpression) {
-        const elements = initializer.getElements().map(e => e.getText());
+        const elements = initializer.getElements().map((e) => e.getText());
         if (!elements.includes(className)) {
           initializer.addElement(className);
         }

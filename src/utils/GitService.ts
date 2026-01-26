@@ -1,6 +1,4 @@
 import { simpleGit, SimpleGit, CleanOptions } from 'simple-git';
-import * as path from 'path';
-import * as fs from 'fs';
 
 /**
  * GitService handles Git operations for the project.

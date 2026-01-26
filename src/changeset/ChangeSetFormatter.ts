@@ -34,22 +34,30 @@ export class ChangeSetFormatter {
    */
   private static getIcon(type: string): string {
     switch (type) {
-      case 'create': return '+';
-      case 'modify': return 'M';
-      case 'delete': return '-';
-      default: return '?';
+      case 'create':
+        return '+';
+      case 'modify':
+        return 'M';
+      case 'delete':
+        return '-';
+      default:
+        return '?';
     }
   }
 
   /**
    * Get color based on change type
    */
-  private static getColor(type: string): any {
+  private static getColor(type: string): (text: string) => string {
     switch (type) {
-      case 'create': return chalk.green;
-      case 'modify': return chalk.yellow;
-      case 'delete': return chalk.red;
-      default: return chalk.white;
+      case 'create':
+        return chalk.green;
+      case 'modify':
+        return chalk.yellow;
+      case 'delete':
+        return chalk.red;
+      default:
+        return chalk.white;
     }
   }
 }

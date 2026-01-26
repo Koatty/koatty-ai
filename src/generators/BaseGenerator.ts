@@ -6,7 +6,10 @@ import { TemplateLoader } from './TemplateLoader';
  * Base Generator - Base class for all code generators
  */
 export abstract class BaseGenerator {
-  constructor(protected spec: Spec, protected changeset: ChangeSet) {
+  constructor(
+    protected spec: Spec,
+    protected changeset: ChangeSet
+  ) {
     TemplateLoader.registerHelpers();
   }
 

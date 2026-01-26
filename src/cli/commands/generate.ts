@@ -1,14 +1,19 @@
 import { Command } from 'commander';
-import { SpecParser } from '../../parser/SpecParser';
-import { Validator } from '../../parser/Validator';
-import { FieldParser } from '../../parser/FieldParser';
-import { ModuleGenerator } from '../../generators/ModuleGenerator';
-import { ChangeSet } from '../../changeset/ChangeSet';
+import { GeneratorPipeline, PipelineOptions } from '../../pipeline/GeneratorPipeline';
 import { ChangeSetFormatter } from '../../changeset/ChangeSetFormatter';
-import { ModuleRegistrar } from '../../patcher/ModuleRegistrar';
-import { RouteRegistrar } from '../../patcher/RouteRegistrar';
+import * as fs from 'fs';
 import * as path from 'path';
-const ora = require('ora');
+import ora from 'ora';
+
+interface GenerateCommandOptions {
+  fields?: string;
+  config?: string;
+  api?: string;
+  auth?: string | boolean;
+  softDelete?: boolean;
+  pagination?: boolean;
+  search?: string;
+}
 
 export function registerGenerateCommand(program: Command) {
   const generate = program
@@ -23,103 +28,49 @@ export function registerGenerateCommand(program: Command) {
     .option('--soft-delete', 'Enable soft delete support')
     .option('--pagination', 'Enable pagination support')
     .option('--search <fields>', 'Comma-separated list of searchable fields')
-    .action(async (moduleName: string, options: any) => {
+    .action(async (moduleName: string, options: GenerateCommandOptions) => {
       const spinner = ora(`Generating module: ${moduleName}`).start();
       try {
-        let spec: any = {
-          module: moduleName,
-          fields: {},
-          api: options.api ? {
-            type: options.api,
-            basePath: `/${moduleName.toLowerCase()}`,
-          } : undefined,
-          dto: {
-            create: true,
-            update: true,
-            query: true,
-          },
-          features: {
-            softDelete: !!options.softDelete,
-            pagination: !!options.pagination,
-            searchableFields: options.search ? options.search.split(',') : [],
-          }
+        // Step 1: Build spec from CLI options
+        const pipelineOptions: PipelineOptions = {
+          specFilePath: options.config,
+          inlineFieldsJson: options.fields,
+          apiType: options.api as 'rest' | 'graphql',
+          auth: options.auth,
+          softDelete: options.softDelete,
+          pagination: options.pagination,
+          searchFields: options.search,
         };
 
-        // 1. Load from config if provided
+        const spec = GeneratorPipeline.buildSpecFromOptions(moduleName, pipelineOptions);
+
+        // Step 2: Merge inline fields if provided
+        if (options.fields) {
+          const tempPipeline = new GeneratorPipeline(spec);
+          tempPipeline.mergeOptions(pipelineOptions);
+          Object.assign(spec, tempPipeline.getSpec());
+        }
+
+        // Step 3: If config file is provided, load and merge it
         if (options.config) {
           const configPath = path.resolve(process.cwd(), options.config);
-          const parsedSpec = SpecParser.parseFile(configPath);
-          spec = { ...spec, ...parsedSpec };
+          const configPipeline = new GeneratorPipeline(configPath);
+          const configSpec = configPipeline.getSpec();
+          Object.assign(spec, configSpec);
         }
 
-        // 2. Parse inline fields
-        if (options.fields) {
-          const inlineFields = FieldParser.parseFields(options.fields);
-          spec.fields = { ...spec.fields, ...inlineFields };
-        }
+        // Step 3: Create pipeline and execute
+        const pipeline = new GeneratorPipeline(spec);
+        const changeset = pipeline.execute();
 
-        // 3. Handle auth roles
-        if (options.auth) {
-          spec.auth = {
-            enabled: true,
-            roles: typeof options.auth === 'string' ? options.auth.split(',') : [],
-          };
-        }
-
-        // 4. Validate Spec
-        try {
-          Validator.validate(spec);
-        } catch (err) {
-          console.error(`\n❌ Validation failed: ${(err as any).message}`);
-          process.exit(1);
-        }
-
-        // 5. Generate changes
-        const changeset = new ChangeSet(moduleName);
-        const generator = new ModuleGenerator(spec, changeset);
-        generator.generate();
-
-        // 6. AST Patching
-        const controllerName = `${moduleName}Controller`;
-        const serviceName = `${moduleName}Service`;
-
-        const registrar = new ModuleRegistrar(changeset, moduleName, controllerName, serviceName);
-        const routeRegistrar = new RouteRegistrar(changeset, moduleName, controllerName);
-
-        // Check if files exist before patching
-        const appModulePath = path.join(process.cwd(), 'src/AppModule.ts');
-        const routerPath = path.join(process.cwd(), 'src/config/router.ts');
-
-        // Note: For now we just record the intent in changeset. 
-        // In 'generate' command, we usually apply directly if no 'plan' is requested.
-        // But the task says 'generate:module' implementation.
-
-        // Register in ChangeSet (these call modifyFile internally which adds to CS)
-        const fs = require('fs');
-        if (fs.existsSync(appModulePath)) {
-          try {
-            registrar.patch(appModulePath);
-          } catch (e) {
-            console.warn(`⚠️ Could not patch AppModule.ts: ${(e as any).message}`);
-          }
-        }
-
-        if (fs.existsSync(routerPath)) {
-          try {
-            routeRegistrar.patch(routerPath);
-          } catch (e) {
-            console.warn(`⚠️ Could not patch router.ts: ${(e as any).message}`);
-          }
-        }
-
-        // 7. Preview
+        // Step 4: Preview the changes
         spinner.succeed(`Generation logic completed for ${moduleName}`);
         console.log(ChangeSetFormatter.format(changeset));
 
         console.log('\n✨ Generation successful! (Ready to apply)');
-        console.log(`Run 'koatty-ai apply --spec <path>' to commit changes to disk.`);
+        console.log(`Run 'koatty-ai apply --changeset ${changeset.id}' to commit changes to disk.`);
 
-        // Save changeset for later 'apply'
+        // Step 5: Save changeset for later apply
         const csDir = path.join(process.cwd(), '.koatty/changesets');
         if (!fs.existsSync(csDir)) {
           fs.mkdirSync(csDir, { recursive: true });
@@ -127,9 +78,8 @@ export function registerGenerateCommand(program: Command) {
         const csPath = path.join(csDir, `${changeset.id}.json`);
         changeset.save(csPath);
         console.log(`\nChangeSet saved to: ${csPath}`);
-
       } catch (error) {
-        spinner.fail(`Generation failed: ${(error as any).message}`);
+        spinner.fail(`Generation failed: ${(error as Error).message}`);
         process.exit(1);
       }
     });

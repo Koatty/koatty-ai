@@ -43,7 +43,7 @@ describe('Parameter Parsing Utilities', () => {
     });
 
     it('should throw for missing value', () => {
-      expect(() => validateRequired(null, 'test')).toThrow("Parameter 'test' is required");
+      expect(() => validateRequired('', 'test')).toThrow("Parameter 'test' is required");
     });
   });
 });

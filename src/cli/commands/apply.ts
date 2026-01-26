@@ -1,66 +1,78 @@
 import { Command } from 'commander';
-import { SpecParser } from '../../parser/SpecParser';
-import { ModuleGenerator } from '../../generators/ModuleGenerator';
+import { GeneratorPipeline } from '../../pipeline/GeneratorPipeline';
 import { ChangeSet } from '../../changeset/ChangeSet';
 import { FileOperator } from '../../utils/FileOperator';
-import { ModuleRegistrar } from '../../patcher/ModuleRegistrar';
-import { RouteRegistrar } from '../../patcher/RouteRegistrar';
 import { QualityService } from '../../utils/QualityService';
 import * as path from 'path';
 import * as fs from 'fs';
-const ora = require('ora');
+import ora from 'ora';
+
+interface ApplyCommandOptions {
+  spec?: string;
+  changeset?: string;
+  validate?: boolean;
+  commit?: boolean;
+}
 
 export function registerApplyCommand(program: Command) {
   const apply = program
     .command('apply')
     .description('Apply generated changes to the project')
-    .option('--spec <path>', 'Path to YAML configuration file')
+    .option('--spec <path>', 'Path to YAML specification file')
+    .option('--changeset <path>', 'Path to ChangeSet JSON file')
     .option('--no-validate', 'Skip quality checks (prettier, eslint, tsc)')
     .option('--commit', 'Auto commit changes to git', false)
-    .action(async (options) => {
+    .action(async (options: ApplyCommandOptions) => {
       const spinner = ora('Applying changes').start();
       try {
-        if (!options.spec) {
-          spinner.fail('--spec <path> is required');
+        if (!options.spec && !options.changeset) {
+          spinner.fail('Either --spec <path> or --changeset <path> is required');
           process.exit(1);
         }
 
-        const specPath = path.resolve(process.cwd(), options.spec);
-        spinner.text = `Applying changes for: ${options.spec}`;
+        let changeset: ChangeSet;
+        let moduleName: string;
+
+        // Mode 1: Apply from ChangeSet JSON file
+        if (options.changeset) {
+          const changesetPath = path.resolve(process.cwd(), options.changeset);
+          if (!fs.existsSync(changesetPath)) {
+            spinner.fail(`ChangeSet file not found at: ${changesetPath}`);
+            process.exit(1);
+          }
+          spinner.text = `Applying changeset: ${options.changeset}`;
+          changeset = ChangeSet.load(changesetPath);
+          moduleName = changeset.module;
+        }
+        // Mode 2: Generate from Spec and apply
+        else if (options.spec) {
+          const specPath = path.resolve(process.cwd(), options.spec);
+          spinner.text = `Applying changes for: ${options.spec}`;
+
+          const pipeline = new GeneratorPipeline(specPath);
+          changeset = pipeline.execute();
+          moduleName = pipeline.getSpec().module;
+        } else {
+          spinner.fail('Either --spec <path> or --changeset <path> is required');
+          process.exit(1);
+        }
 
         // Git Pre-check
         if (options.commit) {
-          const { GitService } = require('../../utils/GitService');
+          const { GitService } = await import('../../utils/GitService');
           const git = new GitService();
-          if (await git.isRepo() && !(await git.isClean())) {
+          if ((await git.isRepo()) && !(await git.isClean())) {
             console.warn('  ⚠️ Git working directory is not clean. Proceeding anyway...');
           }
         }
 
-        const spec = SpecParser.parseFile(specPath);
-        const changeset = new ChangeSet(spec.module);
-
-        // 1. Generate core files
-        const generator = new ModuleGenerator(spec, changeset);
-        generator.generate();
-
-        // 2. Add AST patches if project files exist
-        const controllerName = `${spec.module}Controller`;
-        const serviceName = `${spec.module}Service`;
-        const registrar = new ModuleRegistrar(changeset, spec.module, controllerName, serviceName);
-        const routeRegistrar = new RouteRegistrar(changeset, spec.module, controllerName);
-
-        const appModulePath = path.join(process.cwd(), 'src/AppModule.ts');
-        const routerPath = path.join(process.cwd(), 'src/config/router.ts');
-
-        if (fs.existsSync(appModulePath)) registrar.patch(appModulePath);
-        if (fs.existsSync(routerPath)) routeRegistrar.patch(routerPath);
-
-        // 3. Execute all changes
+        // Execute all changes
         let appliedCount = 0;
         const appliedFiles: string[] = [];
         for (const change of changeset.getChanges()) {
-          const fullPath = path.isAbsolute(change.path) ? change.path : path.join(process.cwd(), change.path);
+          const fullPath = path.isAbsolute(change.path)
+            ? change.path
+            : path.join(process.cwd(), change.path);
 
           if (change.type === 'create' || change.type === 'modify') {
             FileOperator.writeFile(fullPath, change.content || '');
@@ -74,7 +86,7 @@ export function registerApplyCommand(program: Command) {
           }
         }
 
-        // 4. Quality checks (if requested)
+        // Quality checks (if requested)
         if (options.validate && appliedFiles.length > 0) {
           spinner.text = 'Running quality checks...';
           const report = QualityService.processFiles(appliedFiles);
@@ -92,20 +104,19 @@ export function registerApplyCommand(program: Command) {
 
         spinner.succeed(`Successfully applied ${appliedCount} changes.`);
 
-        // 5. Git Commit (if requested)
+        // Git Commit (if requested)
         if (options.commit) {
-          const { GitService } = require('../../utils/GitService');
+          const { GitService } = await import('../../utils/GitService');
           const git = new GitService();
 
           if (await git.isRepo()) {
             spinner.start('Committing changes to Git...');
-            await git.commit(`feat: generate module ${spec.module}`);
+            await git.commit(`feat: generate module ${moduleName}`);
             spinner.succeed('Changes committed successfully.');
           }
         }
-
       } catch (error) {
-        spinner.fail(`Error applying changes: ${(error as any).message}`);
+        spinner.fail(`Error applying changes: ${(error as Error).message}`);
         process.exit(1);
       }
     });

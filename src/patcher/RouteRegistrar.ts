@@ -33,10 +33,10 @@ export class RouteRegistrar extends AstPatcher {
       // We'll add a standard [path, controllerName] entry if it doesn't exist
       const entrySnippet = `["${modulePath}", "${this.controllerName}"]`;
 
-      const elements = routesArray.getElements().map(e => e.getText().replace(/['"]/g, '"'));
+      const elements = routesArray.getElements().map((e) => e.getText().replace(/['"]/g, '"'));
       const searchString = `"${this.controllerName}"`;
 
-      if (!elements.some(e => e.includes(searchString))) {
+      if (!elements.some((e) => e.includes(searchString))) {
         routesArray.addElement(entrySnippet);
       }
     }
@@ -44,7 +44,7 @@ export class RouteRegistrar extends AstPatcher {
 
   private findRoutesArray(sourceFile: SourceFile): ArrayLiteralExpression | undefined {
     // 1. Check for 'export default [...]'
-    const exportAssignment = sourceFile.getExportAssignment(d => !d.isExportEquals());
+    const exportAssignment = sourceFile.getExportAssignment((d) => !d.isExportEquals());
     if (exportAssignment) {
       const expr = exportAssignment.getExpression();
       if (expr.getKind() === SyntaxKind.ArrayLiteralExpression) {

@@ -39,7 +39,12 @@ export class ChangeSet {
   /**
    * Create a modify file change
    */
-  public modifyFile(path: string, content: string, originalContent?: string, description?: string): void {
+  public modifyFile(
+    path: string,
+    content: string,
+    originalContent?: string,
+    description?: string
+  ): void {
     this.addChange(new FileChange('modify', path, content, description, originalContent));
   }
 
@@ -66,8 +71,8 @@ export class ChangeSet {
    * Save ChangeSet to a file
    */
   public save(targetDir: string): string {
-    const fs = require('fs');
-    const path = require('path');
+    const fs = require('fs'); // eslint-disable-line @typescript-eslint/no-require-imports
+    const path = require('path'); // eslint-disable-line @typescript-eslint/no-require-imports
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
     }
@@ -80,12 +85,11 @@ export class ChangeSet {
    * Load ChangeSet from a JSON file
    */
   public static load(filePath: string): ChangeSet {
-    const fs = require('fs');
+    const fs = require('fs'); // eslint-disable-line @typescript-eslint/no-require-imports
     const data = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as ChangeSetInfo;
     const cs = new ChangeSet(data.module);
     // Overwrite auto-generated ID and timestamp
-    (cs as any).id = data.id;
-    (cs as any).timestamp = data.timestamp;
+    Object.assign(cs, { id: data.id, timestamp: data.timestamp });
 
     data.changes.forEach((c) => {
       cs.addChange(new FileChange(c.type, c.path, c.content, c.description, c.originalContent));
@@ -94,4 +98,3 @@ export class ChangeSet {
     return cs;
   }
 }
-

@@ -29,14 +29,15 @@ export interface ApiEndpoint {
 }
 
 export interface ApiConfig {
+  type?: 'rest' | 'graphql';
   basePath: string;
   endpoints: ApiEndpoint[];
 }
 
 export interface DtoConfig {
-  create?: string[];
-  update?: string[];
-  query?: string[];
+  create?: boolean | string[];
+  update?: boolean | string[];
+  query?: boolean | string[];
 }
 
 export interface AuthConfig {
@@ -48,6 +49,7 @@ export interface FeatureConfig {
   softDelete?: boolean;
   pagination?: boolean;
   search?: boolean;
+  searchableFields?: string[];
   audit?: boolean;
 }
 

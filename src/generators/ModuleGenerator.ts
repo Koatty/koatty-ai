@@ -10,7 +10,10 @@ import * as path from 'path';
  * Module Generator - Orchestrates all specific generators for a module
  */
 export class ModuleGenerator {
-  constructor(private spec: Spec, private changeset: ChangeSet) { }
+  constructor(
+    private spec: Spec,
+    private changeset: ChangeSet
+  ) {}
 
   /**
    * Generate all files for a module

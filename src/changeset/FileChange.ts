@@ -10,7 +10,7 @@ export class FileChange {
     public readonly content?: string,
     public readonly description?: string,
     public readonly originalContent?: string
-  ) { }
+  ) {}
 
   /**
    * Create a JSON representation

@@ -28,7 +28,9 @@ export class SpecParser {
       const data = YAML.parse(yamlString);
       return data as Spec;
     } catch (error) {
-      throw new Error(`Failed to parse YAML: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to parse YAML: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 }

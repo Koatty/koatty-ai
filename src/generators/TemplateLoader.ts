@@ -40,8 +40,8 @@ export class TemplateLoader {
       return s.charAt(0).toLowerCase() + s.slice(1);
     });
 
-    Handlebars.registerHelper('eq', (a: any, b: any) => a === b);
+    Handlebars.registerHelper('eq', (a: unknown, b: unknown) => a === b);
 
-    Handlebars.registerHelper('json', (obj: any) => JSON.stringify(obj));
+    Handlebars.registerHelper('json', (obj: unknown) => JSON.stringify(obj));
   }
 }

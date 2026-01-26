@@ -19,7 +19,9 @@ export class FieldParser {
 
       return fields;
     } catch (error) {
-      throw new Error(`Failed to parse fields JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to parse fields JSON: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 

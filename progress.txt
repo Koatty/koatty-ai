@@ -1,0 +1,37 @@
+# Progress Log - Koatty AI MVP
+# 最后更新: 2026-01-26 11:00
+
+## 已完成阶段
+- [x] Tasks 1-5: 项目初始化
+- [x] Tasks 6-10: CLI 命令框架
+- [x] Tasks 11-15: Spec 解析器
+- [x] Tasks 16-20: ChangeSet 机制
+- [x] Tasks 21-25: 模板系统
+- [x] Tasks 26-30: 代码生成器 (Model, DTO, Service, Controller)
+- [x] Task 31: 测试完整模块生成（集成测试 7 个测试通过）
+- [x] Tasks 32-35: AST 修改器（AstPatcher, ModuleRegistrar, RouteRegistrar）
+- [x] Tasks 36-40: CLI 命令实现（generate, plan, apply，进度提示，错误处理）
+- [x] Tasks 41-44: 验证与质量（Prettier, ESLint, TypeScript type-check）
+- [x] Tasks 45-46: Git 集成（simple-git, auto-commit）
+- [x] Tasks 47-48: 文档与示例（README.md, examples/user-management）
+
+## 当前任务
+- [ ] 无 - 所有任务已完成
+
+## 本次完成
+- [x] Task 31: 集成测试创建并通过（7 个测试）
+- [x] 验证所有 65 个单元/集成测试通过
+- [x] 确认 Tasks 32-48 已完成实现
+
+## 下一步
+1. 运行完整测试套件验证一切正常
+2. 编译项目检查类型错误
+3. 提交代码
+
+## 遇到的问题
+- 无
+
+## 关键决策
+- 使用 ts-morph 进行 AST 修改，确保幂等性
+- 集成测试验证完整工作流程
+- 所有 50 个任务（实际 48 个）已完成

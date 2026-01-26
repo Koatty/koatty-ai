@@ -22,23 +22,30 @@ export abstract class AstPatcher {
 
   /**
    * Load a source file, modify it, and add to changeset
-   * @param filePath Path to the file
-   * @param modifier Callback to modify the source file
+   * @param filePath Path to file
+   * @param modifier Callback to modify source file
    */
   protected modifyFile(filePath: string, modifier: (sourceFile: SourceFile) => void): void {
-    const fs = require('fs');
+    const fs = require('fs'); // eslint-disable-line @typescript-eslint/no-require-imports
     if (!fs.existsSync(filePath)) {
       throw new Error(`File not found: ${filePath}`);
     }
 
     const originalContent = fs.readFileSync(filePath, 'utf-8');
-    const sourceFile = this.project.createSourceFile(filePath, originalContent, { overwrite: true });
+    const sourceFile = this.project.createSourceFile(filePath, originalContent, {
+      overwrite: true,
+    });
 
     modifier(sourceFile);
 
     const newContent = sourceFile.getText();
     if (newContent !== originalContent) {
-      this.changeset.modifyFile(filePath, newContent, originalContent, `AST patch: ${this.constructor.name}`);
+      this.changeset.modifyFile(
+        filePath,
+        newContent,
+        originalContent,
+        `AST patch: ${this.constructor.name}`
+      );
       fs.writeFileSync(filePath, newContent);
     }
   }
