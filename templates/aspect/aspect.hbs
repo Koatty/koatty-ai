@@ -1,0 +1,18 @@
+import { Aspect, Before, After } from 'koatty';
+
+@Aspect()
+export class {{pascalCase module}}Aspect {
+  app: any;
+
+  @Before('{{pascalCase module}}Controller.*')
+  async beforeMethod(...args: any[]) {
+    console.log('[{{pascalCase module}}Aspect] Before method execution');
+    // AOP before logic
+  }
+
+  @After('{{pascalCase module}}Controller.*')
+  async afterMethod(...args: any[]) {
+    console.log('[{{pascalCase module}}Aspect] After method execution');
+    // AOP after logic
+  }
+}

@@ -13,13 +13,15 @@ describe('Service Template', () => {
     const context = {
       module: 'user',
       features: {
-        softDelete: true
-      }
+        softDelete: true,
+      },
     };
 
     const result = template(context);
-    expect(result).toContain('export class UserService extends BaseService');
-    expect(result).toContain('@InjectRepository(User)');
+    expect(result).toContain('@Service()');
+    expect(result).toContain('export class UserService');
+    expect(result).toContain('@Autowired()');
+    expect(result).toContain('private userModel: UserModel');
     expect(result).toContain('async findAll(query: QueryUserDto)');
     expect(result).toContain('async create(dto: CreateUserDto)');
     expect(result).toContain('async softDelete(id: number)');

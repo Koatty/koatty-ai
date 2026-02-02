@@ -29,7 +29,6 @@ describe('Integration: Complete Module Generation', () => {
 
   it('should generate all files for user module', () => {
     const pipeline = new GeneratorPipeline(specPath, {
-      enablePatching: false,
       workingDirectory: outputDir,
     });
 
@@ -39,8 +38,8 @@ describe('Integration: Complete Module Generation', () => {
     const files = changeset.getChanges();
     expect(files.length).toBeGreaterThanOrEqual(5);
 
-    const filePaths = files.map(f => f.path);
-    expect(filePaths).toContain('src/user/model/User.ts');
+    const filePaths = files.map((f) => f.path);
+    expect(filePaths).toContain('src/user/model/UserModel.ts');
     expect(filePaths).toContain('src/user/dto/UserDto.ts');
     expect(filePaths).toContain('src/user/service/UserService.ts');
     expect(filePaths).toContain('src/user/controller/UserController.ts');
@@ -49,7 +48,6 @@ describe('Integration: Complete Module Generation', () => {
 
   it('should write generated files to disk', () => {
     const pipeline = new GeneratorPipeline(specPath, {
-      enablePatching: false,
       workingDirectory: outputDir,
     });
 
@@ -64,7 +62,7 @@ describe('Integration: Complete Module Generation', () => {
     }
 
     // Verify files exist on disk
-    expect(fs.existsSync(path.join(outputDir, 'src/user/model/User.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(outputDir, 'src/user/model/UserModel.ts'))).toBe(true);
     expect(fs.existsSync(path.join(outputDir, 'src/user/dto/UserDto.ts'))).toBe(true);
     expect(fs.existsSync(path.join(outputDir, 'src/user/service/UserService.ts'))).toBe(true);
     expect(fs.existsSync(path.join(outputDir, 'src/user/controller/UserController.ts'))).toBe(true);
@@ -73,7 +71,6 @@ describe('Integration: Complete Module Generation', () => {
 
   it('should generate valid TypeScript code', () => {
     const pipeline = new GeneratorPipeline(specPath, {
-      enablePatching: false,
       workingDirectory: outputDir,
     });
 
@@ -88,8 +85,11 @@ describe('Integration: Complete Module Generation', () => {
     }
 
     // Read generated files and check they contain expected content
-    const modelContent = fs.readFileSync(path.join(outputDir, 'src/user/model/User.ts'), 'utf-8');
-    expect(modelContent).toContain('export class User');
+    const modelContent = fs.readFileSync(
+      path.join(outputDir, 'src/user/model/UserModel.ts'),
+      'utf-8'
+    );
+    expect(modelContent).toContain('export class UserModel');
     expect(modelContent).toContain('@Entity');
     expect(modelContent).toContain('@Column');
 
@@ -98,7 +98,10 @@ describe('Integration: Complete Module Generation', () => {
     expect(dtoContent).toContain('export class UpdateUserDto');
     expect(dtoContent).toContain('export class QueryUserDto');
 
-    const serviceContent = fs.readFileSync(path.join(outputDir, 'src/user/service/UserService.ts'), 'utf-8');
+    const serviceContent = fs.readFileSync(
+      path.join(outputDir, 'src/user/service/UserService.ts'),
+      'utf-8'
+    );
     expect(serviceContent).toContain('export class UserService');
     expect(serviceContent).toContain('async findAll');
     expect(serviceContent).toContain('async findById');
@@ -106,7 +109,10 @@ describe('Integration: Complete Module Generation', () => {
     expect(serviceContent).toContain('async update');
     expect(serviceContent).toContain('async delete');
 
-    const controllerContent = fs.readFileSync(path.join(outputDir, 'src/user/controller/UserController.ts'), 'utf-8');
+    const controllerContent = fs.readFileSync(
+      path.join(outputDir, 'src/user/controller/UserController.ts'),
+      'utf-8'
+    );
     expect(controllerContent).toContain('export class UserController');
     expect(controllerContent).toContain('@Controller');
     expect(controllerContent).toContain('async list');
@@ -125,7 +131,6 @@ describe('Integration: Complete Module Generation', () => {
     });
 
     const pipeline = new GeneratorPipeline(spec, {
-      enablePatching: false,
       workingDirectory: outputDir,
     });
 
@@ -150,7 +155,6 @@ describe('Integration: Complete Module Generation', () => {
 
   it('should create index.ts with proper exports', () => {
     const pipeline = new GeneratorPipeline(specPath, {
-      enablePatching: false,
       workingDirectory: outputDir,
     });
 
@@ -173,7 +177,6 @@ describe('Integration: Complete Module Generation', () => {
 
   it('should include auth decorators when auth is enabled', () => {
     const pipeline = new GeneratorPipeline(specPath, {
-      enablePatching: false,
       workingDirectory: outputDir,
     });
 
@@ -187,7 +190,10 @@ describe('Integration: Complete Module Generation', () => {
       }
     }
 
-    const controllerContent = fs.readFileSync(path.join(outputDir, 'src/user/controller/UserController.ts'), 'utf-8');
+    const controllerContent = fs.readFileSync(
+      path.join(outputDir, 'src/user/controller/UserController.ts'),
+      'utf-8'
+    );
     // user.yml has auth enabled, so check for auth import
     expect(controllerContent).toContain('Auth');
     expect(controllerContent).toContain('Roles');

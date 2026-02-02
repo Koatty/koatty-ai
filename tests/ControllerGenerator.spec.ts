@@ -7,10 +7,10 @@ describe('ControllerGenerator', () => {
     const spec: Spec = {
       module: 'user',
       fields: {
-        id: { name: 'id', type: 'number', primary: true }
+        id: { name: 'id', type: 'number', primary: true },
       },
       api: { basePath: '/v1/users', endpoints: [] },
-      auth: { enabled: true }
+      auth: { enabled: true },
     };
     const cs = new ChangeSet(spec.module);
     const generator = new ControllerGenerator(spec, cs);
@@ -21,7 +21,9 @@ describe('ControllerGenerator', () => {
     expect(changes.length).toBe(1);
     expect(changes[0].path).toBe('src/user/controller/UserController.ts');
     expect(changes[0].content).toContain("@Controller('/v1/users')");
-    expect(changes[0].content).toContain('class UserController extends BaseController');
-    expect(changes[0].content).toContain('@Auth()');
+    expect(changes[0].content).toContain('class UserController');
+    expect(changes[0].content).toContain('@Autowired()');
+    expect(changes[0].content).toContain('ctx: KoattyContext');
+    expect(changes[0].content).toContain('@GetMapping');
   });
 });

@@ -16,18 +16,22 @@ describe('Model Template', () => {
       fields: {
         id: { type: 'number', primary: true },
         username: { type: 'string', length: 50, unique: true, required: true },
-        age: { type: 'number', default: 18 }
-      }
+        age: { type: 'number', default: 18 },
+      },
     };
 
     const result = template(context);
+    expect(result).toContain('@Component()');
     expect(result).toContain("@Entity('users')");
-    expect(result).toContain('export class User');
+    expect(result).toContain('export class UserModel');
+    expect(result).toContain('extends BaseEntity');
     expect(result).toContain('@PrimaryGeneratedColumn()');
     expect(result).toContain('id: number;');
-    expect(result).toContain("type: 'string'");
+    expect(result).toContain("type: 'varchar'");
     expect(result).toContain('length: 50');
     expect(result).toContain('username: string;');
-    expect(result).toContain('default: 18');
+    expect(result).toContain('default:');
+    expect(result).toContain('@CreateDateColumn()');
+    expect(result).toContain('@UpdateDateColumn()');
   });
 });

@@ -1,0 +1,223 @@
+{
+  "version": "1.0.0",
+  "description": "Koatty-AI 项目重构 - 修复不符合 Koatty 框架规范的代码",
+  "created_at": "2024-02-02",
+  "tasks": [
+    {
+      "id": "0.1",
+      "title": "删除 ModuleRegistrar.ts",
+      "description": "移除基于 NestJS @Module 概念的文件",
+      "phase": "0",
+      "status": "completed",
+      "files": ["src/patcher/ModuleRegistrar.ts"],
+      "verification": "test ! -f src/patcher/ModuleRegistrar.ts"
+    },
+    {
+      "id": "0.2",
+      "title": "删除 RouteRegistrar.ts",
+      "description": "移除基于手动路由配置的文件",
+      "phase": "0",
+      "status": "completed",
+      "files": ["src/patcher/RouteRegistrar.ts"],
+      "verification": "test ! -f src/patcher/RouteRegistrar.ts"
+    },
+    {
+      "id": "0.3",
+      "title": "删除 ModuleRegistrar 测试文件",
+      "description": "移除对应的测试文件",
+      "phase": "0",
+      "status": "completed",
+      "files": ["tests/ModuleRegistrar.spec.ts"],
+      "verification": "test ! -f tests/ModuleRegistrar.spec.ts"
+    },
+    {
+      "id": "0.4",
+      "title": "删除 RouteRegistrar 测试文件",
+      "description": "移除对应的测试文件",
+      "phase": "0",
+      "status": "completed",
+      "files": ["tests/RouteRegistrar.spec.ts"],
+      "verification": "test ! -f tests/RouteRegistrar.spec.ts"
+    },
+    {
+      "id": "0.5",
+      "title": "更新 GeneratorPipeline.ts 移除 AST Patching",
+      "description": "从流水线中移除 ModuleRegistrar 和 RouteRegistrar 的导入和调用",
+      "phase": "0",
+      "status": "completed",
+      "files": ["src/pipeline/GeneratorPipeline.ts"],
+      "verification": "! grep -q 'ModuleRegistrar\\|RouteRegistrar' src/pipeline/GeneratorPipeline.ts"
+    },
+    {
+      "id": "0.6",
+      "title": "验证项目可以编译",
+      "description": "确保移除代码后项目仍能通过 TypeScript 编译",
+      "phase": "0",
+      "status": "completed",
+      "files": [],
+      "verification": "npm run build"
+    },
+    {
+      "id": "1.1",
+      "title": "修复 Service 模板 - 添加 @Service 装饰器",
+      "description": "为 Service 类添加 @Service() 装饰器,使用 @Autowired() 替代构造函数注入",
+      "phase": "1",
+      "status": "completed",
+      "files": ["templates/service/service.hbs"],
+      "verification": "grep -q '@Service()' templates/service/service.hbs && grep -q '@Autowired()' templates/service/service.hbs && ! grep -q 'extends BaseService' templates/service/service.hbs"
+    },
+    {
+      "id": "1.2",
+      "title": "修复 Controller 模板 - 使用 @Autowired 和 @GetMapping",
+      "description": "使用 @Autowired() 替代构造函数注入,使用 @GetMapping/@PostMapping 替代 @Get/@Post",
+      "phase": "1",
+      "status": "completed",
+      "files": ["templates/controller/controller.hbs"],
+      "verification": "grep -q '@GetMapping' templates/controller/controller.hbs && grep -q '@Autowired()' templates/controller/controller.hbs && grep -q 'ctx: KoattyContext' templates/controller/controller.hbs && ! grep -q 'extends BaseController' templates/controller/controller.hbs"
+    },
+    {
+      "id": "1.3",
+      "title": "修复 Model 模板 - 添加 @Component 装饰器",
+      "description": "添加 @Component() 装饰器,类名改为 XXXModel 格式,添加 CreateDateColumn 和 UpdateDateColumn",
+      "phase": "1",
+      "status": "completed",
+      "files": ["templates/model/model.hbs"],
+      "verification": "grep -q '@Component()' templates/model/model.hbs && grep -q '{{pascalCase module}}Model' templates/model/model.hbs && grep -q '@CreateDateColumn()' templates/model/model.hbs"
+    },
+    {
+      "id": "1.4",
+      "title": "修复 DTO 模板 - 使用 koatty_validation",
+      "description": "使用 koatty_validation 替代 class-validator,添加更丰富的验证规则",
+      "phase": "1",
+      "status": "completed",
+      "files": ["templates/dto/dto.hbs"],
+      "verification": "grep -q \"from 'koatty_validation'\" templates/dto/dto.hbs && grep -q '@IsNotEmpty' templates/dto/dto.hbs"
+    },
+    {
+      "id": "1.5",
+      "title": "更新 ServiceGenerator 修复引用路径",
+      "description": "确保 ServiceGenerator 生成的文件名符合新的 Model 命名规范",
+      "phase": "1",
+      "status": "completed",
+      "files": ["src/generators/ServiceGenerator.ts"],
+      "verification": "npm test -- --testPathPattern=\"ServiceGenerator\""
+    },
+    {
+      "id": "1.6",
+      "title": "更新 ModelGenerator 修复输出文件名",
+      "description": "确保 Model 输出文件名为 XXXModel.ts 而非 XXX.ts",
+      "phase": "1",
+      "status": "completed",
+      "files": ["src/generators/ModelGenerator.ts"],
+      "verification": "npm test -- --testPathPattern=\"ModelGenerator\""
+    },
+    {
+      "id": "1.7",
+      "title": "验证所有模板可以正确渲染",
+      "description": "确保修复后的模板可以成功渲染",
+      "phase": "1",
+      "status": "completed",
+      "files": [],
+      "verification": "npm test -- --testPathPattern=\"Template\""
+    },
+    {
+      "id": "1.8",
+      "title": "运行完整构建和测试",
+      "description": "确保整个项目可以构建和通过测试",
+      "phase": "1",
+      "status": "completed",
+      "files": [],
+      "verification": "npm run build && npm test"
+    },
+    {
+      "id": "2.1",
+      "title": "更新 ServiceTemplate.spec.ts 测试用例",
+      "description": "更新测试以验证 Service 模板包含 @Service 装饰器",
+      "phase": "2",
+      "status": "completed",
+      "files": ["tests/ServiceTemplate.spec.ts"],
+      "verification": "npm test -- --testPathPattern=\"ServiceTemplate\""
+    },
+    {
+      "id": "2.2",
+      "title": "更新 ControllerTemplate.spec.ts 测试用例",
+      "description": "更新测试以验证 Controller 模板使用 @GetMapping",
+      "phase": "2",
+      "status": "completed",
+      "files": ["tests/ControllerTemplate.spec.ts"],
+      "verification": "npm test -- --testPathPattern=\"ControllerTemplate\""
+    },
+    {
+      "id": "2.3",
+      "title": "更新 ModelTemplate.spec.ts 测试用例",
+      "description": "更新测试以验证 Model 模板包含 @Component 装饰器",
+      "phase": "2",
+      "status": "completed",
+      "files": ["tests/ModelTemplate.spec.ts"],
+      "verification": "npm test -- --testPathPattern=\"ModelTemplate\""
+    },
+    {
+      "id": "2.4",
+      "title": "更新 DtoTemplate.spec.ts 测试用例",
+      "description": "更新测试以验证 DTO 模板使用 koatty_validation",
+      "phase": "2",
+      "status": "completed",
+      "files": ["tests/DtoTemplate.spec.ts"],
+      "verification": "npm test -- --testPathPattern=\"DtoTemplate\""
+    },
+    {
+      "id": "2.5",
+      "title": "更新 integration.spec.ts 移除 AST Patching 测试",
+      "description": "从集成测试中移除与 ModuleRegistrar/RouteRegistrar 相关的测试",
+      "phase": "2",
+      "status": "completed",
+      "files": ["tests/integration.spec.ts"],
+      "verification": "npm test -- --testPathPattern=\"integration\""
+    },
+    {
+      "id": "2.6",
+      "title": "运行完整测试套件",
+      "description": "确保所有测试通过",
+      "phase": "2",
+      "status": "completed",
+      "files": [],
+      "verification": "npm test"
+    },
+    {
+      "id": "3.1",
+      "title": "创建 Middleware 模板",
+      "description": "添加 Middleware 模板文件",
+      "phase": "3",
+      "status": "completed",
+      "files": ["templates/middleware/middleware.hbs"],
+      "verification": "test -f templates/middleware/middleware.hbs && grep -q '@Middleware()' templates/middleware/middleware.hbs"
+    },
+    {
+      "id": "3.2",
+      "title": "创建 MiddlewareGenerator 类",
+      "description": "添加 Middleware 代码生成器",
+      "phase": "3",
+      "status": "completed",
+      "files": ["src/generators/MiddlewareGenerator.ts"],
+      "verification": "test -f src/generators/MiddlewareGenerator.ts && npm run build"
+    },
+    {
+      "id": "3.3",
+      "title": "创建 Aspect 模板",
+      "description": "添加 Aspect 切面模板文件",
+      "phase": "3",
+      "status": "completed",
+      "files": ["templates/aspect/aspect.hbs"],
+      "verification": "test -f templates/aspect/aspect.hbs && grep -q '@Aspect()' templates/aspect/aspect.hbs"
+    },
+    {
+      "id": "3.4",
+      "title": "创建 AspectGenerator 类",
+      "description": "添加 Aspect 代码生成器",
+      "phase": "3",
+      "status": "completed",
+      "files": ["src/generators/AspectGenerator.ts"],
+      "verification": "test -f src/generators/AspectGenerator.ts && npm run build"
+    }
+  ]
+}

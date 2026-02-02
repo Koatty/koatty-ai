@@ -30,7 +30,7 @@ export function registerPlanCommand(program: Command) {
         }
 
         // Step 1: Create pipeline with disable patching (preview only)
-        const pipeline = new GeneratorPipeline(specPath, { enablePatching: true });
+        const pipeline = new GeneratorPipeline(specPath);
 
         // Step 2: Execute the pipeline
         const changeset = pipeline.execute();

@@ -8,7 +8,7 @@ export class ModelGenerator extends BaseGenerator {
    * Generate Model file
    */
   public generate(): void {
-    const outputPath = this.getOutputPath('model');
+    const outputPath = this.getOutputPath('model', 'Model');
     const content = this.render('model/model.hbs', this.spec);
 
     this.changeset.createFile(

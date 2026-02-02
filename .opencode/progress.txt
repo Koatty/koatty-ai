@@ -1,0 +1,64 @@
+# Progress Log - Koatty-AI 重构进度
+# 最后更新: 2024-02-02
+
+## 当前任务
+- [x] ✅ 所有重构任务已完成!
+
+## 本次完成
+- [x] Phase 0: 移除不兼容的 NestJS 代码 (6 tasks completed)
+- [x] Phase 1: 修复模板以符合 Koatty 规范 (8 tasks completed)
+- [x] Phase 2: 更新测试以验证新模板 (6 tasks completed)
+- [x] Phase 3: 功能增强 (4 tasks completed)
+
+## 详细完成情况
+
+### Phase 0: 移除不兼容代码
+- ✅ 删除 ModuleRegistrar.ts
+- ✅ 删除 RouteRegistrar.ts
+- ✅ 删除 ModuleRegistrar 测试文件
+- ✅ 删除 RouteRegistrar 测试文件
+- ✅ 更新 GeneratorPipeline.ts 移除 AST Patching
+- ✅ 验证项目可以编译
+
+### Phase 1: 修复模板
+- ✅ 修复 Service 模板 - 添加 @Service 装饰器
+- ✅ 修复 Controller 模板 - 使用 @Autowired 和 @GetMapping
+- ✅ 修复 Model 模板 - 添加 @Component 装饰器
+- ✅ 修复 DTO 模板 - 使用 koatty_validation
+- ✅ 更新 ServiceGenerator 修复引用路径
+- ✅ 更新 ModelGenerator 修复输出文件名
+- ✅ 验证所有模板可以正确渲染
+- ✅ 运行完整构建和测试
+
+### Phase 2: 更新测试
+- ✅ 更新 ServiceTemplate.spec.ts 测试用例
+- ✅ 更新 ControllerTemplate.spec.ts 测试用例
+- ✅ 更新 ModelTemplate.spec.ts 测试用例
+- ✅ 更新 DtoTemplate.spec.ts 测试用例
+- ✅ 更新 integration.spec.ts 移除 AST Patching 测试
+- ✅ 运行完整测试套件 (61/61 tests passed)
+
+### Phase 3: 功能增强
+- ✅ 创建 Middleware 模板
+- ✅ 创建 MiddlewareGenerator 类
+- ✅ 创建 Aspect 模板
+- ✅ 创建 AspectGenerator 类
+
+## 关键发现
+- 移除了所有基于 NestJS 概念的代码(ModuleRegistrar, RouteRegistrar)
+- 修复了所有模板,使用 Koatty 推荐的装饰器和依赖注入方式
+- 添加了缺失的 Handlebars helper: snakeCase, lowerCase
+- 修复了 DTO 和 Model 模板中的格式问题(字段声明在同一行)
+- 更新了所有测试用例,确保符合新的模板结构
+- 添加了 Middleware 和 Aspect 生成器,支持更丰富的代码生成功能
+
+## 最终验证
+✅ 所有 61 个测试全部通过
+✅ 项目可以成功编译
+✅ 生成的代码符合 Koatty 框架规范
+
+## 问题根因
+(暂无)
+
+## 关键发现
+(暂无)

@@ -1,62 +1,56 @@
-import { BaseService } from 'koatty';
-import { InjectRepository } from 'koatty-typeorm';
-import { Repository } from 'typeorm';
-import { {{pascalCase module}} } from '../model/{{pascalCase module}}';
-import { Create{{pascalCase module}}Dto, Update{{pascalCase module}}Dto, Query{{pascalCase module}}Dto } from
-'../dto/{{pascalCase module}}Dto';
+import { Service, Autowired } from 'koatty';
+import { {{pascalCase module}}Model } from '../model/{{pascalCase module}}Model';
+import { Create{{pascalCase module}}Dto, Update{{pascalCase module}}Dto, Query{{pascalCase module}}Dto } from '../dto/{{pascalCase module}}Dto';
 
-export class {{pascalCase module}}Service extends BaseService {
-@InjectRepository({{pascalCase module}})
-private repository: Repository<{{pascalCase module}}>;
+@Service()
+export class {{pascalCase module}}Service {
+  @Autowired()
+  private {{camelCase module}}Model: {{pascalCase module}}Model;
 
   /**
-  * Find all entries with pagination and search
-  */
+   * 分页查询
+   */
   async findAll(query: Query{{pascalCase module}}Dto) {
-  const { page = 1, pageSize = 10, ...filters } = query;
-  return this.repository.findAndCount({
-  where: filters,
-  skip: (page - 1) * pageSize,
-  take: pageSize,
-  });
+    const { page = 1, pageSize = 10, ...filters } = query;
+    return this.{{camelCase module}}Model.list(filters, page, pageSize);
   }
 
   /**
-  * Find by ID
-  */
+   * 根据 ID 查询
+   */
   async findById(id: number) {
-  return this.repository.findOneBy({ id: id as any });
+    return this.{{camelCase module}}Model.get(id);
   }
 
   /**
-  * Create new entry
-  */
+   * 创建
+   */
   async create(dto: Create{{pascalCase module}}Dto) {
-  const entity = this.repository.create(dto as any);
-  return this.repository.save(entity);
+    return this.{{camelCase module}}Model.add(dto);
   }
 
   /**
-  * Update entry
-  */
+   * 更新
+   */
   async update(id: number, dto: Update{{pascalCase module}}Dto) {
-  await this.repository.update(id, dto as any);
-  return this.findById(id);
+    return this.{{camelCase module}}Model.update(id, dto);
   }
 
   /**
-  * Delete entry
-  */
+   * 删除
+   */
   async delete(id: number) {
-  return this.repository.delete(id);
+    return this.{{camelCase module}}Model.delete(id);
   }
 
   {{#if features.softDelete}}
   /**
-  * Soft delete entry
-  */
+   * 软删除
+   */
   async softDelete(id: number) {
-  return this.repository.softDelete(id);
+    return this.{{camelCase module}}Model.update(id, {
+      deletedAt: new Date()
+    });
   }
   {{/if}}
-  }
+}

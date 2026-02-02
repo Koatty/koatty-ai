@@ -13,22 +13,25 @@ describe('Controller Template', () => {
     const context = {
       module: 'user',
       api: {
-        basePath: '/v1/users'
+        basePath: '/v1/users',
       },
       auth: {
         enabled: true,
-        defaultRoles: ['admin']
+        defaultRoles: ['admin'],
       },
       features: {
-        softDelete: true
-      }
+        softDelete: true,
+      },
     };
 
     const result = template(context);
     expect(result).toContain("@Controller('/v1/users')");
-    expect(result).toContain('export class UserController extends BaseController');
-    expect(result).toContain('constructor(private userService: UserService)');
-    expect(result).toContain('@Get(\'/\')');
+    expect(result).toContain('export class UserController');
+    expect(result).toContain('@Autowired()');
+    expect(result).toContain('private userService: UserService');
+    expect(result).toContain('ctx: KoattyContext');
+    expect(result).toContain("@GetMapping('/')");
+    expect(result).toContain("@PostMapping('/')");
     expect(result).toContain('@Auth()');
     expect(result).toContain('@Roles(["admin"])');
     expect(result).toContain('await this.userService.softDelete(id)');

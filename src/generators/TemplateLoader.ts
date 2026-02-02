@@ -40,6 +40,19 @@ export class TemplateLoader {
       return s.charAt(0).toLowerCase() + s.slice(1);
     });
 
+    Handlebars.registerHelper('snakeCase', (str: string) => {
+      if (!str) return '';
+      return str
+        .replace(/([A-Z])/g, '_$1')
+        .toLowerCase()
+        .replace(/^_/, '');
+    });
+
+    Handlebars.registerHelper('lowerCase', (str: string) => {
+      if (!str) return '';
+      return str.toLowerCase();
+    });
+
     Handlebars.registerHelper('eq', (a: unknown, b: unknown) => a === b);
 
     Handlebars.registerHelper('json', (obj: unknown) => JSON.stringify(obj));

@@ -1,8 +1,6 @@
 import { Spec } from '../types/spec';
 import { ChangeSet } from '../changeset/ChangeSet';
 import { ModuleGenerator } from '../generators/ModuleGenerator';
-import { ModuleRegistrar } from '../patcher/ModuleRegistrar';
-import { RouteRegistrar } from '../patcher/RouteRegistrar';
 import { SpecParser } from '../parser/SpecParser';
 import { Validator } from '../runner/Validator';
 import { FieldParser } from '../parser/FieldParser';
@@ -20,7 +18,6 @@ export interface PipelineOptions {
 }
 
 export interface PipelineConfig {
-  enablePatching?: boolean;
   workingDirectory?: string;
 }
 
@@ -41,7 +38,6 @@ export class GeneratorPipeline {
 
   constructor(specOrConfig: Spec | string, config: PipelineConfig = {}) {
     this.config = {
-      enablePatching: true,
       workingDirectory: process.cwd(),
       ...config,
     };
@@ -155,7 +151,7 @@ export class GeneratorPipeline {
   }
 
   /**
-   * Execute the full generation pipeline
+   * Execute full generation pipeline
    */
   public execute(): ChangeSet {
     // Step 1: Validate spec
@@ -165,47 +161,7 @@ export class GeneratorPipeline {
     const generator = new ModuleGenerator(this.spec, this.changeset);
     generator.generate();
 
-    // Step 3: Apply AST patches if enabled
-    if (this.config.enablePatching !== false) {
-      this.applyAstPatches();
-    }
-
     return this.changeset;
-  }
-
-  /**
-   * Apply AST patches to existing project files
-   */
-  private applyAstPatches(): void {
-    const controllerName = `${this.spec.module}Controller`;
-    const serviceName = `${this.spec.module}Service`;
-
-    const registrar = new ModuleRegistrar(
-      this.changeset,
-      this.spec.module,
-      controllerName,
-      serviceName
-    );
-    const routeRegistrar = new RouteRegistrar(this.changeset, this.spec.module, controllerName);
-
-    const appModulePath = path.join(this.workingDirectory, 'src/AppModule.ts');
-    const routerPath = path.join(this.workingDirectory, 'src/config/router.ts');
-
-    if (fs.existsSync(appModulePath)) {
-      try {
-        registrar.patch(appModulePath);
-      } catch (error) {
-        console.warn(`⚠️  Could not patch AppModule.ts: ${(error as Error).message}`);
-      }
-    }
-
-    if (fs.existsSync(routerPath)) {
-      try {
-        routeRegistrar.patch(routerPath);
-      } catch (error) {
-        console.warn(`⚠️  Could not patch router.ts: ${(error as Error).message}`);
-      }
-    }
   }
 
   /**

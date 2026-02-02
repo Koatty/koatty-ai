@@ -1,95 +1,77 @@
-import { Controller, Get, Post, Put, Delete, PathVariable, Body, Query, BaseController } from 'koatty';
+import { Controller, GetMapping, PostMapping, PutMapping, DeleteMapping, PathVariable, RequestBody, Query as QueryParam, Autowired, KoattyContext } from 'koatty';
+import { Validated } from 'koatty_validation';
 import { {{pascalCase module}}Service } from '../service/{{pascalCase module}}Service';
-import { Create{{pascalCase module}}Dto, Update{{pascalCase module}}Dto, Query{{pascalCase module}}Dto } from
-'../dto/{{pascalCase module}}Dto';
+import { Create{{pascalCase module}}Dto, Update{{pascalCase module}}Dto, Query{{pascalCase module}}Dto } from '../dto/{{pascalCase module}}Dto';
 {{#if auth.enabled}}
-import { Auth, Roles } from '@/decorators/auth';
+  import { Auth, Roles } from 'koatty';
 {{/if}}
 
-@Controller('{{#if api.basePath}}{{api.basePath}}{{else}}/{{module}}s{{/if}}')
-export class {{pascalCase module}}Controller extends BaseController {
-constructor(private {{camelCase module}}Service: {{pascalCase module}}Service) {
-super();
-}
+@Controller('{{#if api.basePath}}{{api.basePath}}{{else}}/{{lowerCase module}}{{/if}}')
+export class {{pascalCase module}}Controller {
+  @Autowired()
+  private {{camelCase module}}Service: {{pascalCase module}}Service;
 
-{{#if api.endpoints}}
-{{#each api.endpoints}}
-@{{pascalCase method}}('{{path}}')
-{{#if auth}}@Auth(){{/if}}
-{{#if roles}}@Roles({{json roles}}){{/if}}
-async {{action}}({{#if (eq method "GET")}}{{#if (eq action "list")}}@Query() query: Query{{pascalCase
-../module}}Dto{{else}}{{#if (eq action "detail")}}@PathVariable('id') id: number{{else}}{{#if (eq action
-"update")}}@PathVariable('id') id: number, @Body() dto: Update{{pascalCase
-../module}}Dto{{/if}}{{/if}}{{/if}}{{else}}{{#if (eq method "POST")}}@Body() dto: Create{{pascalCase
-../module}}Dto{{else}}{{#if (eq method "PUT")}}@PathVariable('id') id: number, @Body() dto: Update{{pascalCase
-../module}}Dto{{else}}{{#if (eq method "DELETE")}}@PathVariable('id') id: number{{/if}}{{/if}}{{/if}}{{/if}}) {
-{{#if (eq action "list")}}
-const data = await this.{{camelCase ../module}}Service.findAll(query);
-return this.ok(data);
-{{else}}
-{{#if (eq action "detail")}}
-const data = await this.{{camelCase ../module}}Service.findById(id);
-return this.ok(data);
-{{else}}
-{{#if (eq action "create")}}
-const data = await this.{{camelCase ../module}}Service.create(dto);
-return this.ok(data);
-{{else}}
-{{#if (eq action "update")}}
-const data = await this.{{camelCase ../module}}Service.update(id, dto);
-return this.ok(data);
-{{else}}
-{{#if (eq action "remove")}}
-await this.{{camelCase ../module}}Service.{{#if ../features.softDelete}}softDelete{{else}}delete{{/if}}(id);
-return this.ok();
-{{else}}
-// Custom action: {{action}}
-return this.ok();
-{{/if}}
-{{/if}}
-{{/if}}
-{{/if}}
-{{/if}}
-}
+  ctx: KoattyContext;
 
-{{/each}}
-{{else}}
-@Get('/')
-{{#if auth.enabled}}@Auth(){{/if}}
-{{#if auth.defaultRoles}}@Roles({{json auth.defaultRoles}}){{/if}}
-async list(@Query() query: Query{{pascalCase module}}Dto) {
-const data = await this.{{camelCase module}}Service.findAll(query);
-return this.ok(data);
-}
+  constructor(ctx: KoattyContext) {
+    this.ctx = ctx;
+  }
 
-@Get('/:id')
-async detail(@PathVariable('id') id: number) {
-const data = await this.{{camelCase module}}Service.findById(id);
-return this.ok(data);
-}
+  /**
+   * 分页列表
+   */
+  @GetMapping('/')
+  {{#if auth.enabled}}@Auth(){{/if}}
+  {{#if auth.defaultRoles}}@Roles({{json auth.defaultRoles}}){{/if}}
+  async list(@QueryParam() query: Query{{pascalCase module}}Dto) {
+    const data = await this.{{camelCase module}}Service.findAll(query);
+    return this.ok(data);
+  }
 
-@Post('/')
-{{#if auth.enabled}}@Auth(){{/if}}
-{{#if auth.defaultRoles}}@Roles({{json auth.defaultRoles}}){{/if}}
-async create(@Body() dto: Create{{pascalCase module}}Dto) {
-const data = await this.{{camelCase module}}Service.create(dto);
-return this.ok(data);
-}
+  /**
+   * 详情
+   */
+  @GetMapping('/:id')
+  async detail(@PathVariable('id') id: number) {
+    const data = await this.{{camelCase module}}Service.findById(id);
+    return this.ok(data);
+  }
 
-@Put('/:id')
-{{#if auth.enabled}}@Auth(){{/if}}
-{{#if auth.defaultRoles}}@Roles({{json auth.defaultRoles}}){{/if}}
-async update(@PathVariable('id') id: number, @Body() dto: Update{{pascalCase module}}Dto) {
-const data = await this.{{camelCase module}}Service.update(id, dto);
-return this.ok(data);
-}
+  /**
+   * 创建
+   */
+  @PostMapping('/')
+  @Validated()
+  {{#if auth.enabled}}@Auth(){{/if}}
+  {{#if auth.defaultRoles}}@Roles({{json auth.defaultRoles}}){{/if}}
+  async create(@RequestBody() dto: Create{{pascalCase module}}Dto) {
+    const data = await this.{{camelCase module}}Service.create(dto);
+    return this.ok(data);
+  }
 
-@Delete('/:id')
-{{#if auth.enabled}}@Auth(){{/if}}
-{{#if auth.defaultRoles}}@Roles({{json auth.defaultRoles}}){{/if}}
-async remove(@PathVariable('id') id: number) {
-await this.{{camelCase module}}Service.{{#if features.softDelete}}softDelete{{else}}delete{{/if}}(id);
-return this.ok();
-}
-{{/if}}
+  /**
+   * 更新
+   */
+  @PutMapping('/:id')
+  @Validated()
+  {{#if auth.enabled}}@Auth(){{/if}}
+  {{#if auth.defaultRoles}}@Roles({{json auth.defaultRoles}}){{/if}}
+  async update(
+    @PathVariable('id') id: number,
+    @RequestBody() dto: Update{{pascalCase module}}Dto
+  ) {
+    const data = await this.{{camelCase module}}Service.update(id, dto);
+    return this.ok(data);
+  }
+
+  /**
+   * 删除
+   */
+  @DeleteMapping('/:id')
+  {{#if auth.enabled}}@Auth(){{/if}}
+  {{#if auth.defaultRoles}}@Roles({{json auth.defaultRoles}}){{/if}}
+  async remove(@PathVariable('id') id: number) {
+    await this.{{camelCase module}}Service.{{#if features.softDelete}}softDelete{{else}}delete{{/if}}(id);
+    return this.ok();
+  }
 }
