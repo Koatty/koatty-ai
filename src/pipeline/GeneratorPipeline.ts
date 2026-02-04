@@ -1,6 +1,7 @@
 import { Spec } from '../types/spec';
 import { ChangeSet } from '../changeset/ChangeSet';
 import { ModuleGenerator } from '../generators/ModuleGenerator';
+import { ensureDocScriptInPackageJson } from '../generators/PackageJsonDocGenerator';
 import { SpecParser } from '../parser/SpecParser';
 import { Validator } from '../runner/Validator';
 import { FieldParser } from '../parser/FieldParser';
@@ -160,6 +161,9 @@ export class GeneratorPipeline {
     // Step 2: Generate core files
     const generator = new ModuleGenerator(this.spec, this.changeset);
     generator.generate();
+
+    // Step 3: Ensure package.json has "doc" script for Typia API documentation
+    ensureDocScriptInPackageJson(this.changeset, this.workingDirectory);
 
     return this.changeset;
   }

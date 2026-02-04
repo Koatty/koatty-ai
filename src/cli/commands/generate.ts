@@ -68,7 +68,7 @@ export function registerGenerateCommand(program: Command) {
         console.log(ChangeSetFormatter.format(changeset));
 
         console.log('\n✨ Generation successful! (Ready to apply)');
-        console.log(`Run 'koatty-ai apply --changeset ${changeset.id}' to commit changes to disk.`);
+        console.log(`Run 'koatty apply --changeset ${changeset.id}' to commit changes to disk.`);
 
         // Step 5: Save changeset for later apply
         const csDir = path.join(process.cwd(), '.koatty/changesets');

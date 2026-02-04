@@ -3,6 +3,7 @@ const typescriptParser = require('@typescript-eslint/parser');
 const prettierPlugin = require('eslint-plugin-prettier');
 
 module.exports = [
+  { ignores: ['templates/**', '**/dist/**'] },
   {
     files: ['**/*.ts'],
     languageOptions: {

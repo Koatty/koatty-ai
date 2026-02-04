@@ -42,7 +42,7 @@ export function registerPlanCommand(program: Command) {
         console.log('\n--- Proposed Changes ---');
         console.log(ChangeSetFormatter.format(changeset));
         console.log('\n--- End of Plan ---');
-        console.log(`Run 'koatty-ai apply --spec ${options.spec}' to apply these changes.`);
+        console.log(`Run 'koatty apply --spec ${options.spec}' to apply these changes.`);
       } catch (error) {
         console.error(`Error planning changes: ${(error as Error).message}`);
         process.exit(1);

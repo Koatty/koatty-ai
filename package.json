@@ -1,10 +1,11 @@
 {
-  "name": "koatty-ai",
-  "version": "0.1.0",
-  "description": "Intelligent scaffolding tool for Koatty framework",
+  "name": "koatty_cli",
+  "version": "4.0.0",
+  "description": "Koatty CLI - Intelligent scaffolding tool for Koatty framework (replacement for koatty_cli)",
   "main": "dist/index.js",
   "bin": {
-    "koatty-ai": "./dist/cli/index.js"
+    "koatty": "./dist/cli/index.js",
+    "kt": "./dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc",
