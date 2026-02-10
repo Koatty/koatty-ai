@@ -6,9 +6,9 @@ describe('Service Template', () => {
     TemplateLoader.registerHelpers();
   });
 
-  it('should render a valid Service class', () => {
+  it('should render a valid Service class', async () => {
     const templatePath = path.join(__dirname, '../templates/service/service.hbs');
-    const template = TemplateLoader.compileTemplate(templatePath);
+    const template = await TemplateLoader.compileTemplate(templatePath);
 
     const context = {
       module: 'user',

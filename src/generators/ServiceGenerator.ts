@@ -7,9 +7,9 @@ export class ServiceGenerator extends BaseGenerator {
   /**
    * Generate Service file
    */
-  public generate(): void {
+  public async generate(): Promise<void> {
     const outputPath = this.getOutputPath('service', 'Service');
-    const content = this.render('service/service.hbs', this.spec);
+    const content = await this.render('service/service.hbs', this.spec);
 
     this.changeset.createFile(outputPath, content, `Generate Service for ${this.spec.module}`);
   }

@@ -106,13 +106,18 @@ export function registerAddCommand(program: Command) {
           api: { type: 'rest', basePath: `/${name.toLowerCase()}`, endpoints: [] },
           dto: { create: true, update: true, query: true },
           auth: options.auth
-            ? { enabled: true, defaultRoles: typeof options.auth === 'string' ? options.auth.split(',') : ['user'] }
+            ? {
+                enabled: true,
+                defaultRoles: typeof options.auth === 'string' ? options.auth.split(',') : ['user'],
+              }
             : undefined,
           features: {
             softDelete: options.softDelete ?? true,
             pagination: options.pagination ?? true,
             search: true,
-            searchableFields: Object.keys(fields).filter((k) => !['id', 'createdAt', 'updatedAt'].includes(k)),
+            searchableFields: Object.keys(fields).filter(
+              (k) => !['id', 'createdAt', 'updatedAt'].includes(k)
+            ),
           },
         };
       } else if (options.fields) {
@@ -128,13 +133,18 @@ export function registerAddCommand(program: Command) {
           api: { type: 'rest', basePath: `/${name.toLowerCase()}`, endpoints: [] },
           dto: { create: true, update: true, query: true },
           auth: options.auth
-            ? { enabled: true, defaultRoles: typeof options.auth === 'string' ? options.auth.split(',') : ['user'] }
+            ? {
+                enabled: true,
+                defaultRoles: typeof options.auth === 'string' ? options.auth.split(',') : ['user'],
+              }
             : undefined,
           features: {
             softDelete: options.softDelete ?? false,
             pagination: options.pagination ?? true,
             search: true,
-            searchableFields: Object.keys(fields).filter((k) => !['id', 'createdAt', 'updatedAt'].includes(k)),
+            searchableFields: Object.keys(fields).filter(
+              (k) => !['id', 'createdAt', 'updatedAt'].includes(k)
+            ),
           },
         };
       } else {
@@ -151,7 +161,7 @@ export function registerAddCommand(program: Command) {
       const spinner = ora(`正在生成模块: ${name}`).start();
       try {
         const pipeline = new GeneratorPipeline(spec);
-        const changeset = pipeline.execute();
+        const changeset = await pipeline.execute();
         spinner.succeed(`模块 ${name} 生成完成`);
 
         console.log(ChangeSetFormatter.format(changeset));

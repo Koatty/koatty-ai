@@ -6,9 +6,9 @@ describe('Model Template', () => {
     TemplateLoader.registerHelpers();
   });
 
-  it('should render a valid TypeORM model', () => {
+  it('should render a valid TypeORM model', async () => {
     const templatePath = path.join(__dirname, '../templates/model/model.hbs');
-    const template = TemplateLoader.compileTemplate(templatePath);
+    const template = await TemplateLoader.compileTemplate(templatePath);
 
     const context = {
       module: 'user',

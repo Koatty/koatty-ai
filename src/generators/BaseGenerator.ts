@@ -16,15 +16,15 @@ export abstract class BaseGenerator {
   /**
    * Generate code and add to ChangeSet
    */
-  public abstract generate(): void;
+  public abstract generate(): Promise<void> | void;
 
   /**
-   * Render a template and return content
+   * Render a template and return content (async)
    * @param templatePath Path to the template
    * @param context Template context
    */
-  protected render(templatePath: string, context: any): string {
-    const template = TemplateLoader.compileTemplate(templatePath);
+  protected async render(templatePath: string, context: any): Promise<string> {
+    const template = await TemplateLoader.compileTemplate(templatePath);
     return template(context);
   }
 

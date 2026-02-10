@@ -18,7 +18,7 @@ export class ModuleGenerator {
   /**
    * Generate all files for a module
    */
-  public generate(): void {
+  public async generate(): Promise<void> {
     const generators = [
       new ModelGenerator(this.spec, this.changeset),
       new DtoGenerator(this.spec, this.changeset),
@@ -26,7 +26,9 @@ export class ModuleGenerator {
       new ControllerGenerator(this.spec, this.changeset),
     ];
 
-    generators.forEach((generator) => generator.generate());
+    for (const generator of generators) {
+      await generator.generate();
+    }
     this.generateIndex();
   }
 

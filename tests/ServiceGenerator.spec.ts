@@ -3,7 +3,7 @@ import { ChangeSet } from '../src/changeset/ChangeSet';
 import { Spec } from '../src/types/spec';
 
 describe('ServiceGenerator', () => {
-  it('should generate a service file in ChangeSet', () => {
+  it('should generate a service file in ChangeSet', async () => {
     const spec: Spec = {
       module: 'user',
       fields: {
@@ -14,7 +14,7 @@ describe('ServiceGenerator', () => {
     const cs = new ChangeSet(spec.module);
     const generator = new ServiceGenerator(spec, cs);
 
-    generator.generate();
+    await generator.generate();
 
     const changes = cs.getChanges();
     expect(changes.length).toBe(1);

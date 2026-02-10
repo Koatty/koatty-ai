@@ -11,6 +11,7 @@ import { registerGenerateCommand } from './commands/generate';
 import { registerPlanCommand } from './commands/plan';
 import { registerApplyCommand } from './commands/apply';
 import { registerCreateCommands } from './commands/registerCreate';
+import { registerTemplateCommand } from './commands/template';
 
 const program = new Command();
 
@@ -26,6 +27,7 @@ registerAddCommand(program);
 registerGenerateCommand(program);
 registerPlanCommand(program);
 registerApplyCommand(program);
+registerTemplateCommand(program);
 
 program.parse(process.argv);
 

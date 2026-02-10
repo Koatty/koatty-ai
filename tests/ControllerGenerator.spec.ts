@@ -3,7 +3,7 @@ import { ChangeSet } from '../src/changeset/ChangeSet';
 import { Spec } from '../src/types/spec';
 
 describe('ControllerGenerator', () => {
-  it('should generate a controller file in ChangeSet', () => {
+  it('should generate a controller file in ChangeSet', async () => {
     const spec: Spec = {
       module: 'user',
       fields: {
@@ -15,7 +15,7 @@ describe('ControllerGenerator', () => {
     const cs = new ChangeSet(spec.module);
     const generator = new ControllerGenerator(spec, cs);
 
-    generator.generate();
+    await generator.generate();
 
     const changes = cs.getChanges();
     expect(changes.length).toBe(1);

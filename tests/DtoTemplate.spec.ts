@@ -6,9 +6,9 @@ describe('DTO Template', () => {
     TemplateLoader.registerHelpers();
   });
 
-  it('should render valid DTOs', () => {
+  it('should render valid DTOs', async () => {
     const templatePath = path.join(__dirname, '../templates/dto/dto.hbs');
-    const template = TemplateLoader.compileTemplate(templatePath);
+    const template = await TemplateLoader.compileTemplate(templatePath);
 
     const context = {
       module: 'user',

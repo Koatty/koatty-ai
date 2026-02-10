@@ -3,19 +3,19 @@ import { ChangeSet } from '../src/changeset/ChangeSet';
 import { Spec } from '../src/types/spec';
 
 class TestGenerator extends BaseGenerator {
-  public generate(): void {
-    const content = this.render('test/hello.hbs', { name: 'World' });
+  public async generate(): Promise<void> {
+    const content = await this.render('test/hello.hbs', { name: 'World' });
     this.changeset.createFile(this.getOutputPath('test'), content, 'Test file');
   }
 }
 
 describe('BaseGenerator', () => {
-  it('should render and add to changeset', () => {
+  it('should render and add to changeset', async () => {
     const spec: Spec = { module: 'user', fields: {} };
     const cs = new ChangeSet(spec.module);
     const generator = new TestGenerator(spec, cs);
 
-    generator.generate();
+    await generator.generate();
 
     const changes = cs.getChanges();
     expect(changes.length).toBe(1);

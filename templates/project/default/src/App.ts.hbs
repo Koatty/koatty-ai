@@ -1,0 +1,9 @@
+import { Koatty, Bootstrap } from "koatty";
+import * as path from 'path';
+
+@Bootstrap()
+export class App extends Koatty {
+  public init() {
+    this.rootPath = path.dirname(__dirname);
+  }
+}

@@ -6,9 +6,9 @@ describe('Controller Template', () => {
     TemplateLoader.registerHelpers();
   });
 
-  it('should render a valid Controller class', () => {
+  it('should render a valid Controller class', async () => {
     const templatePath = path.join(__dirname, '../templates/controller/controller.hbs');
-    const template = TemplateLoader.compileTemplate(templatePath);
+    const template = await TemplateLoader.compileTemplate(templatePath);
 
     const context = {
       module: 'user',

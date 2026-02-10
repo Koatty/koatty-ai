@@ -7,9 +7,9 @@ export class MiddlewareGenerator extends BaseGenerator {
   /**
    * Generate Middleware file
    */
-  public generate(): void {
+  public async generate(): Promise<void> {
     const outputPath = this.getOutputPath('middleware', 'Middleware');
-    const content = this.render('middleware/middleware.hbs', this.spec);
+    const content = await this.render('middleware/middleware.hbs', this.spec);
 
     this.changeset.createFile(outputPath, content, `Generate Middleware for ${this.spec.module}`);
   }

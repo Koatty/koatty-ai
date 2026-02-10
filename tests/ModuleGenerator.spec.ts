@@ -3,7 +3,7 @@ import { ChangeSet } from '../src/changeset/ChangeSet';
 import { Spec } from '../src/types/spec';
 
 describe('ModuleGenerator', () => {
-  it('should generate all module files in ChangeSet', () => {
+  it('should generate all module files in ChangeSet', async () => {
     const spec: Spec = {
       module: 'user',
       fields: {
@@ -14,7 +14,7 @@ describe('ModuleGenerator', () => {
     const cs = new ChangeSet(spec.module);
     const generator = new ModuleGenerator(spec, cs);
 
-    generator.generate();
+    await generator.generate();
 
     const changes = cs.getChanges();
     // 1 model, 1 dto, 1 service, 1 controller, 1 index

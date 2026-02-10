@@ -33,7 +33,7 @@ export function registerPlanCommand(program: Command) {
         const pipeline = new GeneratorPipeline(specPath);
 
         // Step 2: Execute the pipeline
-        const changeset = pipeline.execute();
+        const changeset = await pipeline.execute();
         const spec = pipeline.getSpec();
 
         // Step 3: Display summary

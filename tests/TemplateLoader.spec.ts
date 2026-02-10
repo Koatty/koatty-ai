@@ -10,8 +10,8 @@ describe('TemplateLoader', () => {
     TemplateLoader.registerHelpers();
   });
 
-  it('should compile and render a simple template', () => {
-    const template = TemplateLoader.compileTemplate(testFile);
+  it('should compile and render a simple template', async () => {
+    const template = await TemplateLoader.compileTemplate(testFile);
     const result = template({ name: 'World' });
     expect(result).toContain('Hello World');
   });
@@ -30,7 +30,9 @@ describe('TemplateLoader', () => {
     expect(template({ name: 'user_profile' })).toBe('userProfile');
   });
 
-  it('should throw error for non-existent template', () => {
-    expect(() => TemplateLoader.compileTemplate('non-existent.hbs')).toThrow('Template not found');
+  it('should throw error for non-existent template', async () => {
+    await expect(TemplateLoader.compileTemplate('non-existent.hbs')).rejects.toThrow(
+      'Template not found'
+    );
   });
 });

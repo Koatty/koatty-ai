@@ -50,7 +50,7 @@ export function registerApplyCommand(program: Command) {
           spinner.text = `Applying changes for: ${options.spec}`;
 
           const pipeline = new GeneratorPipeline(specPath);
-          changeset = pipeline.execute();
+          changeset = await pipeline.execute();
           moduleName = pipeline.getSpec().module;
         } else {
           spinner.fail('Either --spec <path> or --changeset <path> is required');

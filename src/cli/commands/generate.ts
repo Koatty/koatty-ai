@@ -61,7 +61,7 @@ export function registerGenerateCommand(program: Command) {
 
         // Step 3: Create pipeline and execute
         const pipeline = new GeneratorPipeline(spec);
-        const changeset = pipeline.execute();
+        const changeset = await pipeline.execute();
 
         // Step 4: Preview the changes
         spinner.succeed(`Generation logic completed for ${moduleName}`);

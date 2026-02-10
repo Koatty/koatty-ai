@@ -7,9 +7,9 @@ export class DtoGenerator extends BaseGenerator {
   /**
    * Generate DTO file
    */
-  public generate(): void {
+  public async generate(): Promise<void> {
     const outputPath = this.getOutputPath('dto', 'Dto');
-    const content = this.render('dto/dto.hbs', this.spec);
+    const content = await this.render('dto/dto.hbs', this.spec);
 
     this.changeset.createFile(outputPath, content, `Generate DTOs for ${this.spec.module}`);
   }

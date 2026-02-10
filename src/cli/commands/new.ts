@@ -2,138 +2,10 @@ import { Command } from 'commander';
 import * as fs from 'fs';
 import * as path from 'path';
 import ora from 'ora';
+import { TemplateManager } from '../../services/TemplateManager';
 
 function toPascal(s: string): string {
   return s.replace(/(?:^|[-/])(\w)/g, (_, c) => (c ? c.toUpperCase() : ''));
-}
-
-function getProjectTemplate(projectName: string): Array<{ path: string; content: string }> {
-  const name = projectName.replace(/[^a-zA-Z0-9-_]/g, '-');
-  return [
-    {
-      path: 'package.json',
-      content: JSON.stringify(
-        {
-          name: name || 'koatty-app',
-          version: '1.0.0',
-          description: 'Koatty application',
-          main: 'dist/App.js',
-          scripts: {
-            build: 'tsc',
-            dev: 'nodemon ./src/App.ts',
-            start: 'npm run build && cross-env NODE_ENV=production node ./dist/App.js',
-            test: 'npm run eslint && npm run build && jest --passWithNoTests --detectOpenHandles',
-            doc: 'npx ts-node scripts/generate-api-doc.ts',
-            eslint: 'eslint src --ext .ts',
-          },
-          dependencies: {
-            koatty: '^4.0.0',
-          },
-          devDependencies: {
-            '@types/node': '^20.0.0',
-            typescript: '^5.0.0',
-            'ts-node': '^10.0.0',
-            nodemon: '^3.0.0',
-            'cross-env': '^7.0.0',
-            jest: '^29.0.0',
-            'ts-jest': '^29.0.0',
-            eslint: '^8.0.0',
-          },
-          engines: { node: '>=18.0.0' },
-        },
-        null,
-        2
-      ),
-    },
-    {
-      path: 'tsconfig.json',
-      content: JSON.stringify(
-        {
-          compilerOptions: {
-            target: 'ES2020',
-            module: 'commonjs',
-            outDir: 'dist',
-            rootDir: 'src',
-            strict: true,
-            esModuleInterop: true,
-            skipLibCheck: true,
-            declaration: true,
-            declarationDir: 'dist',
-            experimentalDecorators: true,
-            emitDecoratorMetadata: true,
-          },
-          include: ['src/**/*'],
-          exclude: ['node_modules', 'dist'],
-        },
-        null,
-        2
-      ),
-    },
-    {
-      path: 'src/config/config.ts',
-      content: `export default {
-  server: {
-    hostname: '0.0.0.0',
-    port: 3000,
-    protocol: 'http',
-  },
-};
-`,
-    },
-    {
-      path: 'src/App.ts',
-      content: `import { Koatty } from 'koatty';
-
-const app = new Koatty();
-
-app.run().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
-`,
-    },
-    {
-      path: 'README.md',
-      content: `# ${name || 'koatty-app'}
-
-Koatty 应用，由 \`koatty new\` 创建。
-
-## 开发
-
-\`\`\`bash
-npm install
-npm run dev
-\`\`\`
-
-## 构建
-
-\`\`\`bash
-npm run build
-npm start
-\`\`\`
-
-## 添加模块
-
-\`\`\`bash
-koatty add user --apply
-# 或 kt add user -y --apply
-\`\`\`
-`,
-    },
-    {
-      path: '.gitignore',
-      content: `node_modules/
-dist/
-*.log
-.env
-.DS_Store
-`,
-    },
-    {
-      path: '.koattysrc',
-      content: JSON.stringify({ projectName: name || 'koatty-app' }, null, 2),
-    },
-  ];
 }
 
 function getMiddlewareTemplate(projectName: string): Array<{ path: string; content: string }> {
@@ -259,12 +131,12 @@ function getTemplateFiles(
     case 'plugin':
       return getPluginTemplate(projectName);
     default:
-      return getProjectTemplate(projectName);
+      throw new Error(`不支持的组件模板: ${template}，可选 middleware|plugin`);
   }
 }
 
 export function registerNewCommand(program: Command) {
-  const handler = (projectName: string, options: { dir?: string; template?: string }) => {
+  const handler = async (projectName: string, options: { dir?: string; template?: string }) => {
     const name = (projectName || 'koatty-app').trim();
     const template = (options.template || 'project').toLowerCase();
     if (!['project', 'middleware', 'plugin'].includes(template)) {
@@ -281,13 +153,48 @@ export function registerNewCommand(program: Command) {
 
     const spinner = ora(`正在创建${template === 'project' ? '项目' : '组件'}: ${name}`).start();
     try {
-      const files = getTemplateFiles(template, name);
-      fs.mkdirSync(targetDir, { recursive: true });
+      if (template === 'project') {
+        const templateManager = new TemplateManager();
 
-      for (const { path: filePath, content } of files) {
-        const fullPath = path.join(targetDir, filePath);
-        fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-        fs.writeFileSync(fullPath, content, 'utf-8');
+        spinner.text = '正在准备模板...';
+        const templateDir = await templateManager.ensureTemplateRepo('project');
+
+        // 构造上下文
+        const context = {
+          projectName: name,
+          className: toPascal(name),
+          hostname: '0.0.0.0',
+          port: 3000,
+          protocol: 'http',
+          // 兼容旧变量
+          _PROJECT_NAME: name,
+        };
+
+        spinner.text = '正在生成项目文件...';
+        const defaultDir = path.join(templateDir, 'default');
+        // 如果 default/ 子目录不存在，直接使用 templateDir
+        const renderDir = fs.existsSync(defaultDir) ? defaultDir : templateDir;
+        const files = await templateManager.renderDirectory(renderDir, context);
+
+        fs.mkdirSync(targetDir, { recursive: true });
+        for (const { path: filePath, content, isBinary } of files) {
+          const fullPath = path.join(targetDir, filePath);
+          fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+          if (isBinary) {
+            fs.writeFileSync(fullPath, content);
+          } else {
+            fs.writeFileSync(fullPath, content as string, 'utf-8');
+          }
+        }
+      } else {
+        // middleware / plugin 保留现有内联逻辑
+        const files = getTemplateFiles(template, name);
+        fs.mkdirSync(targetDir, { recursive: true });
+        for (const { path: filePath, content } of files) {
+          const fullPath = path.join(targetDir, filePath);
+          fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+          fs.writeFileSync(fullPath, content, 'utf-8');
+        }
       }
 
       spinner.succeed(`已创建: ${targetDir}`);

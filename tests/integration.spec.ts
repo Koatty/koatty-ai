@@ -27,12 +27,12 @@ describe('Integration: Complete Module Generation', () => {
     }
   });
 
-  it('should generate all files for user module', () => {
+  it('should generate all files for user module', async () => {
     const pipeline = new GeneratorPipeline(specPath, {
       workingDirectory: outputDir,
     });
 
-    const changeset = pipeline.execute();
+    const changeset = await pipeline.execute();
 
     // Verify changeset contains expected files
     const files = changeset.getChanges();
@@ -46,12 +46,12 @@ describe('Integration: Complete Module Generation', () => {
     expect(filePaths).toContain('src/user/index.ts');
   });
 
-  it('should write generated files to disk', () => {
+  it('should write generated files to disk', async () => {
     const pipeline = new GeneratorPipeline(specPath, {
       workingDirectory: outputDir,
     });
 
-    const changeset = pipeline.execute();
+    const changeset = await pipeline.execute();
 
     // Apply changes manually
     for (const change of changeset.getChanges()) {
@@ -69,12 +69,12 @@ describe('Integration: Complete Module Generation', () => {
     expect(fs.existsSync(path.join(outputDir, 'src/user/index.ts'))).toBe(true);
   });
 
-  it('should generate valid TypeScript code', () => {
+  it('should generate valid TypeScript code', async () => {
     const pipeline = new GeneratorPipeline(specPath, {
       workingDirectory: outputDir,
     });
 
-    const changeset = pipeline.execute();
+    const changeset = await pipeline.execute();
 
     // Apply changes manually
     for (const change of changeset.getChanges()) {
@@ -122,7 +122,7 @@ describe('Integration: Complete Module Generation', () => {
     expect(controllerContent).toContain('async remove');
   });
 
-  it('should handle spec with inline options', () => {
+  it('should handle spec with inline options', async () => {
     const spec = GeneratorPipeline.buildSpecFromOptions('product', {
       apiType: 'rest',
       auth: 'admin',
@@ -139,7 +139,7 @@ describe('Integration: Complete Module Generation', () => {
       inlineFieldsJson: '{"name":{"type":"string","required":true},"price":{"type":"number"}}',
     });
 
-    const changeset = pipeline.execute();
+    const changeset = await pipeline.execute();
     expect(changeset.getChanges().length).toBeGreaterThanOrEqual(5);
   });
 
@@ -153,12 +153,12 @@ describe('Integration: Complete Module Generation', () => {
     }).toThrow();
   });
 
-  it('should create index.ts with proper exports', () => {
+  it('should create index.ts with proper exports', async () => {
     const pipeline = new GeneratorPipeline(specPath, {
       workingDirectory: outputDir,
     });
 
-    const changeset = pipeline.execute();
+    const changeset = await pipeline.execute();
 
     // Apply changes manually
     for (const change of changeset.getChanges()) {
@@ -175,12 +175,12 @@ describe('Integration: Complete Module Generation', () => {
     expect(indexContent).toContain('UserDto');
   });
 
-  it('should include auth decorators when auth is enabled', () => {
+  it('should include auth decorators when auth is enabled', async () => {
     const pipeline = new GeneratorPipeline(specPath, {
       workingDirectory: outputDir,
     });
 
-    const changeset = pipeline.execute();
+    const changeset = await pipeline.execute();
 
     // Apply changes manually
     for (const change of changeset.getChanges()) {

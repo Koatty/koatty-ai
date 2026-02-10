@@ -3,17 +3,17 @@ import { ChangeSet } from '../src/changeset/ChangeSet';
 import { Spec } from '../src/types/spec';
 
 describe('DtoGenerator', () => {
-  it('should generate a DTO file in ChangeSet', () => {
+  it('should generate a DTO file in ChangeSet', async () => {
     const spec: Spec = {
       module: 'user',
       fields: {
-        username: { name: 'username', type: 'string', required: true }
-      }
+        username: { name: 'username', type: 'string', required: true },
+      },
     };
     const cs = new ChangeSet(spec.module);
     const generator = new DtoGenerator(spec, cs);
 
-    generator.generate();
+    await generator.generate();
 
     const changes = cs.getChanges();
     expect(changes.length).toBe(1);

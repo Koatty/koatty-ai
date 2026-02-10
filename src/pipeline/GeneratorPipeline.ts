@@ -154,13 +154,13 @@ export class GeneratorPipeline {
   /**
    * Execute full generation pipeline
    */
-  public execute(): ChangeSet {
+  public async execute(): Promise<ChangeSet> {
     // Step 1: Validate spec
     this.validateSpec();
 
     // Step 2: Generate core files
     const generator = new ModuleGenerator(this.spec, this.changeset);
-    generator.generate();
+    await generator.generate();
 
     // Step 3: Ensure package.json has "doc" script for Typia API documentation
     ensureDocScriptInPackageJson(this.changeset, this.workingDirectory);
