@@ -4,6 +4,7 @@ import { ChangeSetFormatter } from '../../changeset/ChangeSetFormatter';
 import { getDefaultFieldsForModule, parseFieldShortSpec } from '../utils/defaultSpecs';
 import { createReadlineInterface, promptForModule } from '../utils/prompt';
 import { Spec } from '../../types/spec';
+import { runCreateAll } from './create';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'yaml';
@@ -18,6 +19,10 @@ interface AddCommandOptions {
   auth?: string | boolean;
   softDelete?: boolean;
   pagination?: boolean;
+  /** 仅搭建骨架：entity、service、controller、dto（原 all 能力） */
+  scaffold?: boolean;
+  /** scaffold 时 controller 类型：http|grpc|websocket|graphql */
+  type?: string;
 }
 
 function buildSpecFromInteractive(
@@ -75,11 +80,18 @@ export function registerAddCommand(program: Command) {
     .option('--auth [roles]', '启用认证，可选角色逗号分隔')
     .option('--soft-delete', '启用软删除')
     .option('--pagination', '启用分页')
+    .option('--scaffold', '仅搭建骨架：entity、service、controller、dto（不生成完整 CRUD）')
+    .option('-t, --type <type>', 'scaffold 时 controller 类型: http|grpc|websocket|graphql', 'http')
     .action(async (moduleName: string, options: AddCommandOptions) => {
       const name = moduleName.trim();
       if (!name) {
         console.error('请提供模块名，如: koatty add user 或 kt add user');
         process.exit(1);
+      }
+
+      if (options.scaffold) {
+        runCreateAll(name, { type: options.type });
+        return;
       }
 
       let spec: Spec;

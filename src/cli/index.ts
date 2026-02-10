@@ -5,10 +5,12 @@
 
 import { Command } from 'commander';
 import { version, description } from '../../package.json';
+import { registerNewCommand } from './commands/new';
 import { registerAddCommand } from './commands/add';
 import { registerGenerateCommand } from './commands/generate';
 import { registerPlanCommand } from './commands/plan';
 import { registerApplyCommand } from './commands/apply';
+import { registerCreateCommands } from './commands/registerCreate';
 
 const program = new Command();
 
@@ -17,7 +19,9 @@ program
   .description(description)
   .version(version, '-v, --version', 'Output the current version');
 
-// Register commands（推荐优先使用 add，无需先写 YAML）
+// Register commands：new/project -> create*(单文件) -> add -> plan -> apply -> generate:module
+registerNewCommand(program);
+registerCreateCommands(program);
 registerAddCommand(program);
 registerGenerateCommand(program);
 registerPlanCommand(program);

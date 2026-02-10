@@ -39,3 +39,4 @@ temp/
 # ChangeSet storage
 .koatty-ai/
 .koatty/changesets/
+demo/
