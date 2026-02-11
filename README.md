@@ -6,10 +6,13 @@ Koatty CLI 为 Koatty 4.0 框架提供智能代码生成，通过 交互/命令�
 
 - **创建项目与组件**：基于外部模板初始化 Koatty 应用、中间件或插件项目
 - **单文件模块创建**：`koatty controller user` / `koatty service user` 快速生成单个模块文件
-- **智能创建模块**：`koatty add user` / `kt add user` 交互式或默认配置生成完整 CRUD 模块
+- **智能创建模块**：`koatty add user` 交互式生成完整 CRUD 模块（REST / gRPC / GraphQL）
+- **多协议 Controller**：HTTP、gRPC、WebSocket、GraphQL 控制器模板，自动更新 `config/server.ts` 的 protocol
+- **SQL 转 YAML**：`koatty sql2yml schema.sql` 将 CREATE TABLE 转为模块配置，支持 MySQL / PostgreSQL / Oracle
 - **多种模块类型**：Controller、Service、Model、DTO、Middleware、Plugin、Aspect、Exception、Proto
 - **TypeORM 集成**：自动生成实体类，支持软删除、时间戳等
 - **数据验证与权限**：koatty_validation、RBAC
+- **变更生效备份**：apply 时对原文件做时间戳备份（`*.bak.HHMMSS`），并加入 `.gitignore`
 - **模板缓存管理**：`koatty template update/status` 管理本地模板缓存
 
 ---
@@ -49,8 +52,9 @@ npx file:../koatty-ai add user
 |------|------|----------|
 | 1. 创建项目（或组件） | 从模板初始化 Koatty 应用 / 中间件 / 插件 | `koatty new <name>` / `koatty new <name> -t middleware` |
 | 2. 创建单个模块文件 | 在项目中快速添加单个文件 | `koatty controller user` / `koatty service user` |
-| 3. 智能创建完整模块 | 交互式或一键生成 CRUD 模块 | `koatty add <module>` |
-| 4. 预览与应用 | 查看变更、写入磁盘、可选校验与提交 | `koatty plan` / `koatty apply` |
+| 3. 智能创建完整模块 | 交互式生成 CRUD 模块（REST/gRPC/GraphQL） | `koatty add <module>` |
+| 4. SQL 转模块（可选） | 从 CREATE TABLE 生成 YAML 并 apply | `koatty sql2yml schema.sql --apply` |
+| 5. 预览与应用 | 查看变更、写入磁盘、可选校验与提交 | `koatty plan` / `koatty apply <module>` |
 
 以下按该顺序分别说明。
 
@@ -110,10 +114,12 @@ koatty new my-app -d /path/to/target
 
 ```bash
 koatty controller user              # HTTP（默认）
-koatty controller user -t grpc      # gRPC
+koatty controller user -t grpc      # gRPC（自动创建 proto + controller，并更新 config/server.ts）
 koatty controller user -t websocket # WebSocket
 koatty controller user -t graphql   # GraphQL
 ```
+
+`-t grpc` / `-t graphql` / `-t websocket` 时会自动在 `config/server.ts` 的 `protocol` 数组中添加对应协议。若 proto 已存在，会提示可直接修改 proto 后再次执行使变更生效。
 
 ### Service
 
@@ -140,51 +146,44 @@ koatty exception global    # 异常处理器（@ExceptionHandler）
 koatty proto user          # gRPC Proto 文件
 ```
 
+**注意**：service、middleware、plugin、aspect、dto、exception、model、proto 若目标文件已存在，会提示错误并退出，避免覆盖。仅 `controller -t grpc` 可重复执行以应用 proto 变更。
+
 ---
 
 ## 三、智能创建完整模块
 
-在**已有 Koatty 项目**根目录下，为业务添加完整模块（Model、DTO、Service、Controller 等）。
+在**已有 Koatty 项目**根目录下，为业务添加完整模块（Model、DTO、Service、Controller、Aspect 等）。
 
-### 方式一：交互式（推荐，无需 YAML）
+### 交互式创建（推荐）
 
 ```bash
 koatty add user
 # 或: kt add user
 ```
 
-按提示输入字段（或直接回车使用 **user** 的推荐默认）、API 路径、是否认证等；若希望直接写入项目：
+按提示依次输入：API 类型（rest/grpc/graphql）、字段定义、API 路径、认证、软删除、分页、是否直接写入。**默认会保存 `user.yml`**，便于后续修改后复用。
+
+### 指定 API 类型
 
 ```bash
-koatty add user --apply
+koatty add user -t grpc      # 跳过 API 类型选择，直接生成 gRPC 模块
+koatty add product -t graphql # 生成 GraphQL 模块
 ```
 
-### 方式二：默认配置一步生成
+### 重复执行与 apply
+
+首次执行会生成 `user.yml`；再次执行 `koatty add user` 时会**加载已有 YAML 作为默认值**，可回车沿用或修改。变更生效需执行：
 
 ```bash
-koatty add user -y --apply
-```
-
-### 方式三：命令行指定字段
-
-```bash
-koatty add product --fields "name:string required price:number stock:number status:enum:draft,on_sale" --apply
-```
-
-### 保存为 YAML 便于复现
-
-```bash
-koatty add order -y --apply --save-spec
-# 会生成 order.yml 并写入模块代码，之后可用 plan/apply 基于 YAML 再生成
+koatty apply user    # 等价于 koatty apply --spec user.yml
 ```
 
 ### 进阶：完全自定义时使用 YAML
 
-先编写 `user.yml`（格式见 [规范文件格式](#-规范文件格式)），再预览与应用：
+先编写 `user.yml`（格式见 [规范文件格式](#-规范文件格式)），再应用：
 
 ```bash
-koatty plan --spec user.yml
-koatty apply --spec user.yml --validate --commit
+koatty apply user --validate --commit
 ```
 
 ---
@@ -193,12 +192,59 @@ koatty apply --spec user.yml --validate --commit
 
 - **预览**：只输出将要生成/修改的内容，不写盘。
   `koatty plan --spec user.yml`
-- **应用**：将变更写入项目，可选运行校验与 Git 提交。
-  `koatty apply --spec user.yml --validate --commit`
+- **应用**：将变更写入项目。支持模块名简写、时间戳备份、自动更新 `.gitignore`。
+
+```bash
+koatty apply user                    # 使用 user.yml 生成并应用
+koatty apply --spec user.yml         # 等价写法
+koatty apply --changeset <path>      # 从 ChangeSet 文件应用
+koatty apply user --validate --commit
+```
+
+**变更生效时**：若原文件已存在，会先备份为 `UserService.bak.HHMMSS.ts`，并将 `*.bak.*` 加入 `.gitignore`。
 
 ---
 
-## 五、模板管理
+## 五、SQL 转 YAML（sql2yml）
+
+将 `CREATE TABLE` SQL 转为模块 YAML，支持常见数据库类型，便于从已有表结构快速生成模块。
+
+### 基本用法
+
+```bash
+koatty sql2yml schema.sql          # 解析 SQL，生成 user.yml、product.yml 等
+koatty sql2yml schema.sql --apply  # 生成 YAML 后立即执行 apply
+```
+
+### 指定数据库类型
+
+```bash
+koatty sql2yml schema.sql -d mysql
+koatty sql2yml schema.sql --dialect postgres
+koatty sql2yml schema.sql --dialect oracle
+```
+
+支持 MySQL、PostgreSQL、Oracle 等常见类型（INT、VARCHAR、TEXT、JSON、JSONB、SERIAL、VARCHAR2、CLOB 等）。
+
+### 未知类型处理
+
+遇到无法识别的 SQL 类型时，会**交互式提示**用户指定 Spec 类型（string/number/boolean/datetime/text/json）。非交互模式使用 `-y`：
+
+```bash
+koatty sql2yml schema.sql -y       # 未知类型默认为 string，不提示
+```
+
+### 其他选项
+
+```bash
+koatty sql2yml schema.sql -o ./specs     # 指定 YAML 输出目录
+koatty sql2yml schema.sql --api grpc     # 指定 API 类型
+koatty sql2yml schema.sql --auth         # 启用认证
+```
+
+---
+
+## 六、模板管理
 
 ### 模板目录结构
 
@@ -262,7 +308,7 @@ fields: # 字段定义
     searchable: true/false # 是否可搜索（用于查询 DTO）
 api: # API 配置
   basePath: <路径> # 基础路径，如 /users
-  type: rest/graphql # API 类型，默认 rest
+  type: rest/grpc/graphql # API 类型，默认 rest
   endpoints: # 自定义端点（可选）
     - method: GET/POST/PUT/DELETE
       path: <路径>
@@ -335,26 +381,21 @@ koatty new my-app -d ./workspace        # 指定目标目录
 
 ### `add <module-name>`（推荐）
 
-智能创建模块，**无需先写 YAML**。支持交互式、默认配置、命令行字段简写。
+智能创建模块，**无需先写 YAML**。交互式输入字段、API 类型、认证等，默认保存为 `<module>.yml`。
 
 **选项：**
 
-- `-y, --yes`：使用该模块的推荐默认字段（user/product/order/article 等），不交互
-- `--fields <spec>`：字段简写，如 `name:string username:string required email:string status:enum:active,inactive`
-- `--apply`：生成后直接写入项目
-- `--save-spec`：将本次配置保存为 `<module>.yml`
-- `--auth [roles]`：启用认证，可选角色逗号分隔
-- `--soft-delete`：启用软删除
-- `--pagination`：启用分页
+- `-t, --type <type>`：API 类型 `rest|grpc|graphql`，传入则跳过交互式选择
 
 **示例：**
 
 ```bash
-koatty add user                    # 交互式，按提示输入（可用 kt 替代 koatty）
-koatty add user -y --apply         # 用 user 默认字段，直接写入
-koatty add product --fields "name:string price:number" --apply
-koatty add order -y --apply --save-spec   # 生成 order.yml 并写入代码
+koatty add user                    # 交互式，按提示输入
+koatty add user -t grpc            # 指定 gRPC，跳过 API 类型选择
+koatty add product -t graphql     # 指定 GraphQL
 ```
+
+变更生效：`koatty apply user`。重复执行 `koatty add user` 时会加载已有 `user.yml` 作为默认值。
 
 ### `generate:module <name>`
 
@@ -392,20 +433,47 @@ koatty generate:module product \
 koatty plan --spec user.yml
 ```
 
-### `apply`
+### `apply [module-name]`
 
-生成代码并应用变更。
+生成代码并应用变更。支持模块名简写。
 
 **选项：**
 
-- `--spec <path>`：必需，规范文件路径
-- `--validate`：运行代码质量检查（默认：true）
-- `--commit`：自动提交到 Git（默认：false）
+- `[module-name]`：模块名，使用 `<module>.yml` 生成并应用
+- `--spec <path>`：规范文件路径
+- `--changeset <path>`：ChangeSet JSON 文件路径
+- `--no-validate`：跳过质量检查
+- `--commit`：自动提交到 Git
 
 **示例：**
 
 ```bash
-koatty apply --spec user.yml --validate --commit
+koatty apply user                  # 使用 user.yml
+koatty apply --spec user.yml
+koatty apply --changeset .koatty/changesets/xxx.json --validate --commit
+```
+
+### `sql2yml <sql-file>`
+
+将 CREATE TABLE SQL 转为模块 YAML，支持 MySQL、PostgreSQL、Oracle。未知类型可交互式指定或使用 `-y` 默认为 string。
+
+**选项：**
+
+- `-o, --output <dir>`：YAML 输出目录
+- `-d, --dialect <db>`：数据库类型 `mysql|postgres|oracle|auto`
+- `--api <type>`：API 类型 `rest|grpc|graphql`
+- `--auth`：启用认证
+- `--no-soft-delete`：禁用软删除
+- `--no-pagination`：禁用分页
+- `--apply`：生成 YAML 后立即执行 apply
+- `-y, --yes`：非交互模式，未知类型默认为 string
+
+**示例：**
+
+```bash
+koatty sql2yml schema.sql
+koatty sql2yml schema.sql -d postgres --apply
+koatty sql2yml schema.sql -y
 ```
 
 ### `template`
