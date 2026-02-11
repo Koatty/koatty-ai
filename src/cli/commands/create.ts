@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { isKoattyApp } from '../../utils/koattyProject';
 import { TemplateLoader } from '../../generators/TemplateLoader';
+import { QualityService } from '../../utils/QualityService';
 
 export type CreateModuleOptions = {
   type?: string; // controller: http|grpc|websocket|graphql; model: typeorm|thinkorm
@@ -168,6 +169,7 @@ export async function runCreateModule(
   }
 
   if (written.length > 0) {
+    QualityService.formatFiles(written);
     console.log(`创建成功: ${written.join(', ')}`);
     const className = path.basename(outPath, path.extname(outPath));
     if (moduleType === 'middleware') {

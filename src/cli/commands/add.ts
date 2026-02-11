@@ -5,6 +5,7 @@ import { getDefaultFieldsForModule, parseFieldShortSpec } from '../utils/default
 import { createReadlineInterface, promptForModule } from '../utils/prompt';
 import { Spec } from '../../types/spec';
 import { runCreateAll } from './create';
+import { QualityService } from '../../utils/QualityService';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'yaml';
@@ -182,15 +183,22 @@ export function registerAddCommand(program: Command) {
 
         if (options.apply) {
           const { FileOperator } = await import('../../utils/FileOperator');
+          const appliedPaths: string[] = [];
           for (const change of changeset.getChanges()) {
             const fullPath = path.join(cwd, change.path);
             if (change.type === 'create' || change.type === 'modify') {
               FileOperator.writeFile(fullPath, change.content || '');
               console.log(`  ✅ ${change.type === 'create' ? '创建' : '修改'} ${change.path}`);
+              appliedPaths.push(fullPath);
             } else if (change.type === 'delete') {
               FileOperator.deleteFile(fullPath);
               console.log(`  🗑️  删除 ${change.path}`);
             }
+          }
+          if (appliedPaths.length > 0) {
+            const formatSpinner = ora('正在格式化...').start();
+            QualityService.formatFiles(appliedPaths);
+            formatSpinner.succeed('格式化完成');
           }
           console.log('\n✨ 已写入项目，可直接使用。');
         } else {

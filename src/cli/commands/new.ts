@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import ora from 'ora';
 import { TemplateManager } from '../../services/TemplateManager';
+import { QualityService } from '../../utils/QualityService';
 
 function toPascal(s: string): string {
   return s.replace(/(?:^|[-/])(\w)/g, (_, c) => (c ? c.toUpperCase() : ''));
@@ -61,6 +62,7 @@ export function registerNewCommand(program: Command) {
       const files = await templateManager.renderDirectory(renderDir, context);
 
       fs.mkdirSync(targetDir, { recursive: true });
+      const writtenPaths: string[] = [];
       for (const { path: filePath, content, isBinary } of files) {
         const fullPath = path.join(targetDir, filePath);
         fs.mkdirSync(path.dirname(fullPath), { recursive: true });
@@ -68,7 +70,13 @@ export function registerNewCommand(program: Command) {
           fs.writeFileSync(fullPath, content);
         } else {
           fs.writeFileSync(fullPath, content as string, 'utf-8');
+          writtenPaths.push(fullPath);
         }
+      }
+
+      if (writtenPaths.length > 0) {
+        spinner.text = '正在格式化...';
+        QualityService.formatFiles(writtenPaths);
       }
 
       spinner.succeed(`已创建: ${targetDir}`);

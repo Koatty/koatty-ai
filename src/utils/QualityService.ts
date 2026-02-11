@@ -1,10 +1,26 @@
 import { execSync } from 'child_process';
 import * as fs from 'fs';
+import * as path from 'path';
+
+const FORMATABLE_EXT = ['.ts', '.tsx', '.js', '.jsx', '.json'];
 
 /**
  * QualityService handles automated code quality checks (formatting, linting, type-checking).
  */
 export class QualityService {
+  /**
+   * Format multiple files. Only files with formatable extensions (.ts, .tsx, .js, .jsx, .json)
+   * are processed; others are skipped.
+   */
+  static formatFiles(filePaths: string[]): void {
+    const toFormat = filePaths.filter(
+      (p) => fs.existsSync(p) && FORMATABLE_EXT.includes(path.extname(p))
+    );
+    for (const fp of toFormat) {
+      this.formatFile(fp);
+    }
+  }
+
   /**
    * Format a file using Prettier.
    */
