@@ -1,16 +1,16 @@
 # Koatty CLI - 智能脚手架工具
 
-Koatty CLI 为 Koatty 框架提供智能代码生成，通过 交互/命令行快速生成 Model、DTO、Service、Controller 等；也支持 YAML/JSON 做精细配置。
+Koatty CLI 为 Koatty 4.0 框架提供智能代码生成，通过 交互/命令行快速生成 Controller、Service、Model、DTO、Middleware、Plugin、Aspect、Exception、Proto 等；也支持 YAML/JSON 做精细配置。
 
 ## ✨ 特性
 
-- **创建项目与插件**：基于模板初始化 Koatty 应用或插件项目
-- **智能创建模块**：`koatty add user` / `kt add user` 交互式或默认配置即可生成，不必先写 YAML
-- **完全符合 Koatty 框架规范**：使用 `@Service()`, `@Autowired()`, `@Get`/`@Post` 等官方推荐方式
-- **支持多种代码生成**：Model, DTO, Service, Controller, Middleware, Aspect
+- **创建项目与组件**：基于外部模板初始化 Koatty 应用、中间件或插件项目
+- **单文件模块创建**：`koatty controller user` / `koatty service user` 快速生成单个模块文件
+- **智能创建模块**：`koatty add user` / `kt add user` 交互式或默认配置生成完整 CRUD 模块
+- **多种模块类型**：Controller、Service、Model、DTO、Middleware、Plugin、Aspect、Exception、Proto
 - **TypeORM 集成**：自动生成实体类，支持软删除、时间戳等
 - **数据验证与权限**：koatty_validation、RBAC
-- **多协议 API 文档**：HTTP / WebSocket / gRPC / GraphQL，基于 Typia
+- **模板缓存管理**：`koatty template update/status` 管理本地模板缓存
 
 ---
 
@@ -47,26 +47,30 @@ npx file:../koatty-ai add user
 
 | 步骤 | 说明 | 常用命令 |
 |------|------|----------|
-| 1. 创建项目（或插件） | 从模板初始化 Koatty 应用 / 插件 | `koatty new <name>`、`koatty new:plugin <name>` |
-| 2. 创建模块 | 在项目中添加业务模块（Model/DTO/Service/Controller） | `koatty add <module>` |
-| 3. 预览与应用 | 查看变更、写入磁盘、可选校验与提交 | `koatty plan`、`koatty apply` |
-| 4. 生成 API 文档 | 基于 Controller + Typia 生成多协议文档 | `npm run doc` |
+| 1. 创建项目（或组件） | 从模板初始化 Koatty 应用 / 中间件 / 插件 | `koatty new <name>` / `koatty new <name> -t middleware` |
+| 2. 创建单个模块文件 | 在项目中快速添加单个文件 | `koatty controller user` / `koatty service user` |
+| 3. 智能创建完整模块 | 交互式或一键生成 CRUD 模块 | `koatty add <module>` |
+| 4. 预览与应用 | 查看变更、写入磁盘、可选校验与提交 | `koatty plan` / `koatty apply` |
 
 以下按该顺序分别说明。
 
 ---
 
-## 一、创建项目（或插件）
+## 一、创建项目（或组件）
 
 ### 创建 Koatty 应用
-
-在空目录或希望创建项目的路径下执行：
 
 ```bash
 koatty new my-app
 ```
 
-会基于官方模板生成 Koatty 应用骨架（目录结构、package.json、基础配置等）。生成后进入项目目录安装依赖并启动：
+基于 Koatty 4.0 模板生成应用骨架，包含：
+- `src/App.ts` — 使用 `@Bootstrap()` 装饰器
+- `src/config/server.ts` — 独立服务器配置（hostname/port/protocol）
+- `src/config/config.ts` — 通用配置
+- `package.json` — 现代依赖（tsx、rimraf 等）
+
+生成后：
 
 ```bash
 cd my-app
@@ -74,21 +78,71 @@ npm install
 npm run dev
 ```
 
-### 创建插件 / 组件项目
-
-若需开发可复用的 Koatty 插件（中间件、扩展等）：
+### 创建中间件项目
 
 ```bash
-koatty new:plugin my-plugin
+koatty new my-middleware -t middleware
 ```
 
-会生成插件型项目结构，便于发布到 npm 或在其他 Koatty 项目中引用。
+生成中间件型项目结构（`@Middleware()` 装饰器），便于发布到 npm。
 
-> **说明**：若当前版本尚未提供 `new` / `new:plugin`，可先用 [Koatty 官方脚手架](https://github.com/Koatty/koatty)（如 `koatty new awesome-app`）或从空目录初始化项目，再在项目内使用下方「创建模块」与「生成 API 文档」等能力。
+### 创建插件项目
+
+```bash
+koatty new my-plugin -t plugin
+```
+
+生成插件型项目结构（`@Plugin()` 装饰器），便于发布到 npm。
+
+### 指定目标目录
+
+```bash
+koatty new my-app -d /path/to/target
+```
 
 ---
 
-## 二、创建模块
+## 二、创建单个模块文件
+
+在**已有 Koatty 项目**根目录下（包含 `.koattysrc` 文件），快速生成单个模块文件。
+
+### Controller
+
+```bash
+koatty controller user              # HTTP（默认）
+koatty controller user -t grpc      # gRPC
+koatty controller user -t websocket # WebSocket
+koatty controller user -t graphql   # GraphQL
+```
+
+### Service
+
+```bash
+koatty service user
+koatty service user -i    # 同时生成接口文件 IUserService.ts
+```
+
+### Model / Entity
+
+```bash
+koatty model user                    # TypeORM（默认）
+koatty model user -o thinkorm       # ThinkORM
+```
+
+### 其他模块类型
+
+```bash
+koatty dto user           # DTO 类
+koatty middleware auth     # 中间件
+koatty plugin cache        # 插件（含 @OnEvent 生命周期）
+koatty aspect logging      # AOP 切面
+koatty exception global    # 异常处理器（@ExceptionHandler）
+koatty proto user          # gRPC Proto 文件
+```
+
+---
+
+## 三、智能创建完整模块
 
 在**已有 Koatty 项目**根目录下，为业务添加完整模块（Model、DTO、Service、Controller 等）。
 
@@ -135,36 +189,54 @@ koatty apply --spec user.yml --validate --commit
 
 ---
 
-## 三、预览与应用变更
+## 四、预览与应用变更
 
-- **预览**：只输出将要生成/修改的内容，不写盘。  
+- **预览**：只输出将要生成/修改的内容，不写盘。
   `koatty plan --spec user.yml`
-- **应用**：将变更写入项目，可选运行校验与 Git 提交。  
+- **应用**：将变更写入项目，可选运行校验与 Git 提交。
   `koatty apply --spec user.yml --validate --commit`
-
-应用时若项目中尚无 `doc` 脚本，会自动在 `package.json` 中增加 `doc` 脚本及依赖（typia、ts-morph、ts-patch），并创建 `scripts/generate-api-doc.ts`。
 
 ---
 
-## 四、生成 API 文档（多协议 + Typia）
+## 五、模板管理
 
-在项目根目录执行：
+### 模板目录结构
+
+CLI 的模板存放在 `templates/` 目录下，分为三个子目录，分别映射到独立的外部仓库：
+
+| 子目录 | 用途 | 对应命令 | 外部仓库 |
+|--------|------|----------|----------|
+| `templates/project/` | 项目脚手架 | `koatty new <name>` | [koatty-ai-template-project](https://github.com/koatty/koatty-ai-template-project) |
+| `templates/modules/` | 单文件模块 | `koatty create <type>` / `koatty add` | [koatty-ai-template-modules](https://github.com/koatty/koatty-ai-template-modules) |
+| `templates/component/` | 独立组件库 | `koatty new <name> -t middleware\|plugin` | [koatty-ai-template-component](https://github.com/koatty/koatty-ai-template-component) |
+
+这三个子目录同时也是 **Git Submodule**，开发者可在源码仓库中直接修改模板。
+
+### 模板解析优先级
+
+CLI 使用三级降级策略定位模板：
+
+1. **用户缓存** (`~/.koatty/templates/{type}`)：通过 `koatty template update` 下载的最新版本，优先使用
+2. **内置模板** (`templates/{type}`)：随 npm 包发布的 submodule 快照
+3. **远程下载**：如果以上两者均不可用，自动从远程仓库 clone 到用户缓存
+
+### 查看模板状态
 
 ```bash
-npm run doc
+koatty template status
 ```
 
-会基于 **Typia** 与 Controller/Resolver 扫描，生成多协议 API 文档：
+显示每种模板类型的来源（用户缓存 / 内置）、路径、最近更新时间。
 
-| 协议 | 扫描装饰器/来源 | 说明 |
-|------|----------------|------|
-| **HTTP** | `@Controller`、`@Get`/`@Post`/`@Put`/`@Delete`/`@Patch`（[Koatty 路由](https://koatty.org/#/?id=%e8%b7%af%e7%94%b1)）及 `@GetMapping` 等别名 | REST 路径与方法、RequestBody / `@Post()` DTO |
-| **WebSocket** | `@WebSocket('/path')`、`@SubscribeMessage('event')` | 通道与事件列表 |
-| **gRPC** | `@Grpc('/ServiceName/MethodName')` | 服务与方法、请求/响应类型 |
-| **GraphQL** | `@Query()` / `@Mutation()` / `@Subscription()` / `@Resolver()`、`**/*.graphql` | 操作与 Resolver、可选 schema |
+### 更新模板
 
-- **输出**：`docs/openapi.json`（仅 HTTP）、`docs/api-doc.json`（全协议 + `components.schemas`）。
-- 首次使用建议：`npx ts-patch install`。
+```bash
+koatty template update                        # 更新所有模板到 ~/.koatty/templates/
+koatty template update -t modules             # 仅更新 modules 模板
+koatty template update -t project -m gitee    # 从 Gitee 镜像更新 project 模板
+```
+
+更新后的模板会覆盖内置版本的优先级，确保使用最新模板。
 
 ---
 
@@ -224,6 +296,42 @@ features: # 功能特性
 | `decimal`  | 小数      | price, rate          |
 
 ## 🛠️ 命令参考
+
+### `new <project-name>`
+
+创建新的 Koatty 项目或组件项目。
+
+**选项：**
+
+- `-t, --template <template>`：模板类型: `project`（默认）| `middleware` | `plugin`
+- `-d, --dir <path>`：目标目录（默认为当前目录下的 `<project-name>`）
+
+**别名：** `project <project-name>`
+
+**示例：**
+
+```bash
+koatty new my-app                       # 创建 Koatty 应用
+koatty new my-middleware -t middleware   # 创建中间件项目
+koatty new my-plugin -t plugin          # 创建插件项目
+koatty new my-app -d ./workspace        # 指定目标目录
+```
+
+### 单文件模块创建命令
+
+在 Koatty 项目中创建单个模块文件。
+
+| 命令 | 说明 | 选项 |
+|------|------|------|
+| `controller [name]` | 创建 Controller | `-t http\|grpc\|websocket\|graphql` |
+| `service <name>` | 创建 Service | `-i` 同时生成接口 |
+| `model <name>` | 创建 Model/Entity | `-o typeorm\|thinkorm` |
+| `dto <name>` | 创建 DTO 类 | |
+| `middleware <name>` | 创建 Middleware | |
+| `plugin <name>` | 创建 Plugin | |
+| `aspect <name>` | 创建 Aspect 切面 | |
+| `exception <name>` | 创建 Exception | |
+| `proto <name>` | 创建 Proto 文件 | |
 
 ### `add <module-name>`（推荐）
 
@@ -300,39 +408,46 @@ koatty plan --spec user.yml
 koatty apply --spec user.yml --validate --commit
 ```
 
-## 🎯 生成的代码
+### `template`
 
-### Model (TypeORM Entity)
+管理模板缓存。
+
+**子命令：**
+
+- `template update`：更新模板缓存（从远程仓库下载）
+  - `-t, --type <type>`：模板类型 `project|modules|component`（不指定则更新全部）
+  - `-m, --mirror <mirror>`：镜像源 `github|gitee`（默认 `github`）
+- `template status`：检查模板缓存状态
+
+**示例：**
+
+```bash
+koatty template status
+koatty template update
+koatty template update -t modules -m gitee
+```
+
+## 🎯 生成的代码示例
+
+### Controller（Koatty 4.0）
 
 ```typescript
-import { Component } from 'koatty';
-import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
-  DeleteDateColumn,
-  BaseEntity,
-} from 'typeorm';
+import { KoattyContext, Controller, Autowired, GetMapping } from 'koatty';
+import { App } from '../App';
 
-@Component()
-@Entity('users')
-export class UserModel extends BaseEntity {
-  @PrimaryGeneratedColumn()
-  id: number;
+@Controller('/user')
+export class UserController {
+  app: App;
+  ctx: KoattyContext;
 
-  @Column({ type: 'varchar', length: 50, unique: true, nullable: false })
-  username: string;
+  constructor(ctx: KoattyContext) {
+    this.ctx = ctx;
+  }
 
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  @DeleteDateColumn()
-  deletedAt: Date;
+  @GetMapping('/')
+  index(): Promise<any> {
+    return this.ok('Hello, Koatty!');
+  }
 }
 ```
 
@@ -368,59 +483,40 @@ export class UserService {
   async delete(id: number) {
     return this.userModel.delete(id);
   }
-
-  async softDelete(id: number) {
-    return this.userModel.update(id, { deletedAt: new Date() });
-  }
 }
 ```
 
-### Controller
+### Model (TypeORM Entity)
 
 ```typescript
+import { Component } from 'koatty';
 import {
-  Controller,
-  GetMapping,
-  PostMapping,
-  PutMapping,
-  DeleteMapping,
-  PathVariable,
-  RequestBody,
-  Query as QueryParam,
-  Autowired,
-  KoattyContext,
-} from 'koatty';
-import { Validated } from 'koatty_validation';
-import { UserService } from '../service/UserService';
-import { CreateUserDto, UpdateUserDto, QueryUserDto } from '../dto/UserDto';
-import { Auth, Roles } from 'koatty';
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+  BaseEntity,
+} from 'typeorm';
 
-@Controller('/users')
-export class UserController {
-  @Autowired()
-  private userService: UserService;
+@Component()
+@Entity('users')
+export class UserModel extends BaseEntity {
+  @PrimaryGeneratedColumn()
+  id: number;
 
-  ctx: KoattyContext;
+  @Column({ type: 'varchar', length: 50, unique: true, nullable: false })
+  username: string;
 
-  constructor(ctx: KoattyContext) {
-    this.ctx = ctx;
-  }
+  @CreateDateColumn()
+  createdAt: Date;
 
-  @GetMapping('/')
-  @Auth()
-  @Roles(['admin'])
-  async list(@QueryParam() query: QueryUserDto) {
-    const data = await this.userService.findAll(query);
-    return this.ok(data);
-  }
+  @UpdateDateColumn()
+  updatedAt: Date;
 
-  @PostMapping('/')
-  @Validated()
-  @Auth()
-  async create(@RequestBody() dto: CreateUserDto) {
-    const data = await this.userService.create(dto);
-    return this.ok(data);
-  }
+  @DeleteDateColumn()
+  deletedAt: Date;
 }
 ```
 
@@ -442,37 +538,73 @@ export class CreateUserDto {
 }
 ```
 
+### Plugin（Koatty 4.0 — 含 @OnEvent 生命周期）
+
+```typescript
+import { Plugin, IPlugin, OnEvent, AppEvent, KoattyApplication } from 'koatty';
+import { App } from '../App';
+
+@Plugin()
+export class CachePlugin implements IPlugin {
+  run(options: any, app: App) {
+    // plugin initialization
+  }
+
+  @OnEvent(AppEvent.appReady)
+  async onReady(app: KoattyApplication) {
+    // execute after application is ready
+  }
+
+  @OnEvent(AppEvent.appStop)
+  async onStop(app: KoattyApplication) {
+    // cleanup resources
+  }
+}
+```
+
+### Aspect（Koatty 4.0）
+
+```typescript
+import { Aspect } from 'koatty';
+import { App } from '../App';
+
+@Aspect()
+export class LoggingAspect {
+  app: App;
+
+  run() {
+    // AOP aspect logic
+  }
+}
+```
+
 ### Middleware
 
 ```typescript
-import { Middleware, KoattyContext, Koatty } from 'koatty';
+import { Middleware, KoattyContext, KoattyNext } from 'koatty';
 
 @Middleware()
-export class UserMiddleware {
-  run(options: any, app: Koatty) {
-    return async (ctx: KoattyContext, next: Function) => {
-      console.log(`[UserMiddleware] Request: ${ctx.path}`);
+export class AuthMiddleware {
+  run(options: any, app: any) {
+    return async (ctx: KoattyContext, next: KoattyNext) => {
+      // middleware logic
       await next();
     };
   }
 }
 ```
 
-### Aspect
+### Exception（Koatty 4.0）
 
 ```typescript
-import { Aspect, Before, After } from 'koatty';
+import { Exception, ExceptionHandler, KoattyContext } from 'koatty';
 
-@Aspect()
-export class UserAspect {
-  @Before('UserController.*')
-  async beforeMethod(...args: any[]) {
-    console.log('[UserAspect] Before method execution');
-  }
-
-  @After('UserController.*')
-  async afterMethod(...args: any[]) {
-    console.log('[UserAspect] After method execution');
+@ExceptionHandler()
+export class GlobalException extends Exception {
+  async handler(ctx: KoattyContext): Promise<any> {
+    ctx.status = this.status;
+    ctx.type = 'application/json';
+    ctx.res.end(`{"code": ${this.code}, "message": "${this.message}"}`);
   }
 }
 ```
@@ -481,31 +613,15 @@ export class UserAspect {
 
 Koatty CLI 确保生成的代码：
 
-- ✅ 符合项目的 **Prettier** 格式化规则
-- ✅ 通过 **ESLint** 代码检查
-- ✅ 通过 **TypeScript** 类型检查
-- ✅ 遵循 **Koatty 框架规范**
-- ✅ 使用正确的 **装饰器**和**依赖注入方式**
-
-## 🔧 配置
-
-Koatty CLI 支持通过配置文件自定义生成行为（可选）：
-
-```json
-{
-  "structure": "modular", // "standard" 或 "modular"
-  "outputDir": "src",
-  "testDir": "tests"
-}
-```
+- 符合项目的 **Prettier** 格式化规则
+- 通过 **ESLint** 代码检查
+- 通过 **TypeScript** 类型检查
+- 遵循 **Koatty 4.0 框架规范**
+- 使用正确的 **装饰器**和**依赖注入方式**
 
 ## 📚 示例
 
-更多示例请参考 `specs/examples/` 目录：
-
-- `user.yml` - 用户模块（包含认证、软删除、分页）
-- `product.yml` - 产品模块（包含枚举、搜索）
-- `order.yml` - 订单模块（包含关联关系）
+更多示例请参考 `examples/` 目录。
 
 ## 🤝 贡献
 
@@ -513,206 +629,13 @@ Koatty CLI 支持通过配置文件自定义生成行为（可选）：
 
 ## 📄 许可证
 
-MIT
+BSD-3-Clause
 
 ## 🔗 相关链接
 
 - [Koatty 框架文档](https://koatty.org)
 - [TypeORM 文档](https://typeorm.io/)
 
-
-## 🔮 未来规划 - AI 驱动的智能开发
-
-Koatty AI 正在从"配置驱动"升级为"对话驱动"的智能开发助手，以下是规划中的 AI 特性：
-
-### 🤖 LLM 驱动的智能代码生成
-
-> **目标**：通过自然语言对话自动生成代码，让开发像聊天一样简单
-
-**核心能力**：
-
-| 能力             | 描述                       | 示例                                               |
-| ---------------- | -------------------------- | -------------------------------------------------- |
-| **自然语言理解** | 理解用户意图，提取关键信息 | "新增一个用户控制器" → 自动生成 UserController     |
-| **多轮对话细化** | 通过对话逐步明确需求       | "开发用户管理" → 询问字段、权限、API 等细节        |
-| **智能推断**     | 根据上下文自动推断缺失信息 | "用户管理" → 推断需要 name、email、password 等字段 |
-| **代码审查**     | 生成后自动检查代码质量     | 检查是否符合 Koatty 规范，提供优化建议             |
-
-**交互示例**：
-
-```bash
-# 场景 1: 简单命令
-$ koatty chat
-AI: 你好！我是 Koatty AI 助手，我可以帮你生成代码。有什么需要帮助的吗？
-
-你: 新增一个用户控制器
-
-AI: 我将为您创建 UserController。请确认以下信息：
-    - 控制器路径: /users
-    - 包含方法: list, detail, create, update, remove
-    是否需要调整？
-
-你: 路径改成 /api/users
-
-AI: 好的，已调整。正在生成...
-    ✅ 已创建 src/user/controller/UserController.ts
-
-    是否需要同时生成对应的 Service 和 Model？
-
-你: 是
-
-AI: 请提供 User 模块的字段信息，或者我可以为您推荐常用字段：
-    - username (string, 必填)
-    - email (string, 必填, 唯一)
-    - password (string, 必填)
-    - status (enum: active/inactive)
-    使用这些字段吗？
-
-你: 再加一个 phone 字段
-
-AI: 好的，已添加 phone 字段。正在生成完整模块...
-    ✅ 已创建 src/user/model/UserModel.ts
-    ✅ 已创建 src/user/dto/UserDto.ts
-    ✅ 已创建 src/user/service/UserService.ts
-
-    生成完成！您可以运行 `npm run dev` 启动服务测试。
-```
-
-**技术架构**：
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                   用户交互层                        │
-│  ┌─────────────┐  ┌─────────────┐  ┌──────────┐ │
-│  │   CLI 命令   │  │  Web UI     │  │  MCP API │ │
-│  └─────────────┘  └─────────────┘  └──────────┘ │
-└─────────────────────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│                   LLM 编排层                        │
-│  ┌─────────────────────────────────────────────────┐  │
-│  │   Conversation Manager (对话管理器)            │  │
-│  │   • 会话状态管理                             │  │
-│  │   • 上下文维护                               │  │
-│  │   • 多轮对话编排                             │  │
-│  └─────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│              工具调用层 (Function Calling)         │
-│  • generate_module    - 生成完整模块              │
-│  • create_controller  - 创建控制器                 │
-│  • analyze_project    - 分析项目结构               │
-│  • validate_spec     - 验证规范                   │
-└─────────────────────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│              代码生成层 (现有)                      │
-│  • Generators  • Templates  • ChangeSet           │
-└─────────────────────────────────────────────────────────┘
-```
-
-### 🌐 Koatty Hub - 组件生态平台
-
-> **目标**：建立 Koatty 框架的组件生态，让开发者能够发现、安装和分享高质量组件
-
-**核心功能**：
-
-| 功能     | 描述                 |
-| -------- | -------------------- |
-| **发现** | 浏览和搜索高质量组件 |
-| **安装** | 一键安装组件到项目   |
-| **贡献** | 分享自己创建的组件   |
-| **评价** | 评分、评论、使用统计 |
-
-**组件分类**：
-
-```
-Koatty Hub
-├── 🏛️ 官方组件 (Official)
-│   ├── koatty_core          # 核心框架
-│   ├── koatty_container     # IOC 容器
-│   ├── koatty_router        # 路由
-│   ├── koatty_validation    # 验证
-│   └── ...
-│
-├── 🔌 中间件 (Middleware)
-│   ├── koatty-cors          # 跨域处理
-│   ├── koatty-helmet        # 安全头
-│   ├── koatty-ratelimit     # 限流
-│   └── ...
-│
-├── 🔧 插件 (Plugin)
-│   ├── koatty-swagger       # Swagger 文档
-│   ├── koatty-graphql       # GraphQL 支持
-│   └── ...
-│
-├── 🎯 切面 (Aspect)
-│   ├── koatty-logger        # 日志切面
-│   ├── koatty-metrics       # 指标切面
-│   └── ...
-│
-├── 📦 模板 (Template)
-│   ├── koatty-template-api  # REST API 项目模板
-│   ├── koatty-template-grpc # gRPC 项目模板
-│   └── ...
-│
-└── 🧩 业务组件 (Business)
-    ├── koatty-auth-jwt      # JWT 认证
-    ├── koatty-payment       # 支付集成
-    └── ... (社区贡献)
-```
-
-**使用示例**：
-
-```bash
-# 搜索组件
-$ koatty hub search jwt
-
-📦 koatty-auth-jwt (v2.1.0) ⭐ 4.8 (128 reviews)
-   JWT authentication middleware for Koatty
-   Downloads: 12,345 | Category: middleware
-
-📦 koatty-jwt-utils (v1.0.3) ⭐ 4.2 (23 reviews)
-   JWT utility functions
-   Downloads: 3,456 | Category: plugin
-
-# 安装组件
-$ koatty hub install koatty-auth-jwt
-
-✓ 检测项目兼容性...
-✓ 安装依赖...
-✓ 配置中间件...
-✓ 更新文档...
-完成！现在可以使用 @UseJwt() 装饰器了
-
-# 查看热门组件
-$ koatty hub trending
-
-# 发布自己的组件
-$ koatty hub publish
-
-流程: [验证代码] → [上传组件包] → [自动审核] → [发布上线]
-```
-
-### 📅 实施路线图
-
-| 阶段     | 内容                  | 预计时间  |
-| -------- | --------------------- | --------- |
-| 阶段 1   | LLM Provider 抽象层   | 2 周      |
-| 阶段 2   | Function Calling 实现 | 2 周      |
-| 阶段 3   | MCP 工具集成          | 2 周      |
-| 阶段 4   | 对话管理器            | 2 周      |
-| 阶段 5   | Koatty Hub 前端       | 3 周      |
-| 阶段 6   | Koatty Hub API        | 3 周      |
-| 阶段 7   | 组件发布流程          | 2 周      |
-| **合计** | **7 个阶段**          | **16 周** |
-
-
 ---
 
 Made with ❤️ by the Koatty community
-

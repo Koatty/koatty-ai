@@ -18,7 +18,7 @@ describe('ServiceGenerator', () => {
 
     const changes = cs.getChanges();
     expect(changes.length).toBe(1);
-    expect(changes[0].path).toBe('src/user/service/UserService.ts');
+    expect(changes[0].path).toBe('src/service/UserService.ts');
     expect(changes[0].content).toContain('@Service()');
     expect(changes[0].content).toContain('class UserService');
     expect(changes[0].content).toContain('@Autowired()');

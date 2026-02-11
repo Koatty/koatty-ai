@@ -5,12 +5,26 @@ import ora from 'ora';
 const VALID_TYPES: TemplateType[] = ['project', 'modules', 'component'];
 const VALID_MIRRORS: MirrorSource[] = ['github', 'gitee'];
 
+/** 模板类型中文描述 */
+const TYPE_LABELS: Record<TemplateType, string> = {
+  project: '项目模板（koatty new）',
+  modules: '模块模板（koatty create / add）',
+  component: '组件库模板（koatty new -t middleware|plugin）',
+};
+
+/** 来源中文描述 */
+const SOURCE_LABELS: Record<string, string> = {
+  cache: '用户缓存',
+  bundled: '内置(submodule)',
+  none: '不可用',
+};
+
 export function registerTemplateCommand(program: Command): Command {
   const template = program.command('template').description('管理 Koatty 模板缓存');
 
   template
     .command('update')
-    .description('更新模板缓存（从远程仓库重新下载）')
+    .description('更新模板缓存（从远程仓库重新下载到 ~/.koatty/templates/）')
     .option('-t, --type <type>', '模板类型: project|modules|component（不指定则更新全部）')
     .option('-m, --mirror <mirror>', '镜像源: github|gitee', 'github')
     .action(async (options: { type?: string; mirror?: string }) => {
@@ -54,17 +68,38 @@ export function registerTemplateCommand(program: Command): Command {
   template
     .command('status')
     .description('检查模板缓存状态')
-    .action(async () => {
+    .action(() => {
       const manager = new TemplateManager();
 
       console.log('模板状态:\n');
+      console.log(`  缓存目录: ${manager.getCacheDir()}`);
+      console.log(`  内置目录: ${manager.getSubmoduleDir()}\n`);
+
       for (const type of VALID_TYPES) {
-        try {
-          const tplPath = await manager.getTemplatePath(type);
-          console.log(`  ✓ ${type}: ${tplPath}`);
-        } catch {
-          console.log(`  ✗ ${type}: 未找到（运行 koatty template update --type ${type} 下载）`);
+        const status = manager.getTemplateStatus(type);
+        const sourceLabel = SOURCE_LABELS[status.source];
+        const icon = status.source !== 'none' ? '✓' : '✗';
+
+        console.log(`  ${icon} ${type} — ${TYPE_LABELS[type]}`);
+        console.log(`    当前来源: ${sourceLabel}`);
+
+        if (status.activePath) {
+          console.log(`    使用路径: ${status.activePath}`);
         }
+
+        if (status.cache.valid && status.cache.updatedAt) {
+          console.log(`    缓存更新: ${status.cache.updatedAt.toLocaleString()}`);
+        } else if (!status.cache.valid) {
+          console.log(`    缓存状态: 未缓存（运行 koatty template update -t ${type} 下载）`);
+        }
+
+        if (status.bundled.valid) {
+          console.log(`    内置模板: 可用 (${status.bundled.path})`);
+        } else {
+          console.log(`    内置模板: 不可用`);
+        }
+
+        console.log('');
       }
     });
 

@@ -36,14 +36,15 @@ describe('Integration: Complete Module Generation', () => {
 
     // Verify changeset contains expected files
     const files = changeset.getChanges();
-    expect(files.length).toBeGreaterThanOrEqual(5);
+    expect(files.length).toBeGreaterThanOrEqual(4);
 
     const filePaths = files.map((f) => f.path);
-    expect(filePaths).toContain('src/user/model/UserModel.ts');
-    expect(filePaths).toContain('src/user/dto/UserDto.ts');
-    expect(filePaths).toContain('src/user/service/UserService.ts');
-    expect(filePaths).toContain('src/user/controller/UserController.ts');
-    expect(filePaths).toContain('src/user/index.ts');
+    expect(filePaths).toContain('src/model/UserModel.ts');
+    expect(filePaths).toContain('src/dto/UserDto.ts');
+    expect(filePaths).toContain('src/service/UserService.ts');
+    expect(filePaths).toContain('src/controller/UserController.ts');
+    // user.yml 中 auth.enabled: true，会额外生成 AuthAspect
+    expect(filePaths).toContain('src/aspect/AuthAspect.ts');
   });
 
   it('should write generated files to disk', async () => {
@@ -62,11 +63,10 @@ describe('Integration: Complete Module Generation', () => {
     }
 
     // Verify files exist on disk
-    expect(fs.existsSync(path.join(outputDir, 'src/user/model/UserModel.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(outputDir, 'src/user/dto/UserDto.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(outputDir, 'src/user/service/UserService.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(outputDir, 'src/user/controller/UserController.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(outputDir, 'src/user/index.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(outputDir, 'src/model/UserModel.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(outputDir, 'src/dto/UserDto.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(outputDir, 'src/service/UserService.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(outputDir, 'src/controller/UserController.ts'))).toBe(true);
   });
 
   it('should generate valid TypeScript code', async () => {
@@ -86,20 +86,20 @@ describe('Integration: Complete Module Generation', () => {
 
     // Read generated files and check they contain expected content
     const modelContent = fs.readFileSync(
-      path.join(outputDir, 'src/user/model/UserModel.ts'),
+      path.join(outputDir, 'src/model/UserModel.ts'),
       'utf-8'
     );
     expect(modelContent).toContain('export class UserModel');
     expect(modelContent).toContain('@Entity');
     expect(modelContent).toContain('@Column');
 
-    const dtoContent = fs.readFileSync(path.join(outputDir, 'src/user/dto/UserDto.ts'), 'utf-8');
+    const dtoContent = fs.readFileSync(path.join(outputDir, 'src/dto/UserDto.ts'), 'utf-8');
     expect(dtoContent).toContain('export class CreateUserDto');
     expect(dtoContent).toContain('export class UpdateUserDto');
     expect(dtoContent).toContain('export class QueryUserDto');
 
     const serviceContent = fs.readFileSync(
-      path.join(outputDir, 'src/user/service/UserService.ts'),
+      path.join(outputDir, 'src/service/UserService.ts'),
       'utf-8'
     );
     expect(serviceContent).toContain('export class UserService');
@@ -110,7 +110,7 @@ describe('Integration: Complete Module Generation', () => {
     expect(serviceContent).toContain('async delete');
 
     const controllerContent = fs.readFileSync(
-      path.join(outputDir, 'src/user/controller/UserController.ts'),
+      path.join(outputDir, 'src/controller/UserController.ts'),
       'utf-8'
     );
     expect(controllerContent).toContain('export class UserController');
@@ -140,7 +140,7 @@ describe('Integration: Complete Module Generation', () => {
     });
 
     const changeset = await pipeline.execute();
-    expect(changeset.getChanges().length).toBeGreaterThanOrEqual(5);
+    expect(changeset.getChanges().length).toBeGreaterThanOrEqual(4);
   });
 
   it('should handle validation errors for invalid spec', () => {
@@ -153,14 +153,13 @@ describe('Integration: Complete Module Generation', () => {
     }).toThrow();
   });
 
-  it('should create index.ts with proper exports', async () => {
+  it('should generate service with TypeORM findAndCount', async () => {
     const pipeline = new GeneratorPipeline(specPath, {
       workingDirectory: outputDir,
     });
 
     const changeset = await pipeline.execute();
 
-    // Apply changes manually
     for (const change of changeset.getChanges()) {
       const fullPath = path.join(outputDir, change.path);
       if (change.type === 'create' || change.type === 'modify') {
@@ -168,21 +167,28 @@ describe('Integration: Complete Module Generation', () => {
       }
     }
 
-    const indexContent = fs.readFileSync(path.join(outputDir, 'src/user/index.ts'), 'utf-8');
-    expect(indexContent).toContain('UserController');
-    expect(indexContent).toContain('UserService');
-    expect(indexContent).toContain('User');
-    expect(indexContent).toContain('UserDto');
+    const serviceContent = fs.readFileSync(
+      path.join(outputDir, 'src/service/UserService.ts'),
+      'utf-8'
+    );
+    // 使用 TypeORM 标准 API
+    expect(serviceContent).toContain('findAndCount');
+    expect(serviceContent).toContain('skip:');
+    expect(serviceContent).toContain('take:');
+    expect(serviceContent).toContain('findOneBy');
+    // 不应包含不存在的 API
+    expect(serviceContent).not.toContain('.list(');
+    expect(serviceContent).not.toContain('.get(');
+    expect(serviceContent).not.toContain('.add(');
   });
 
-  it('should include auth decorators when auth is enabled', async () => {
+  it('should not include @Auth or @Roles decorators', async () => {
     const pipeline = new GeneratorPipeline(specPath, {
       workingDirectory: outputDir,
     });
 
     const changeset = await pipeline.execute();
 
-    // Apply changes manually
     for (const change of changeset.getChanges()) {
       const fullPath = path.join(outputDir, change.path);
       if (change.type === 'create' || change.type === 'modify') {
@@ -191,11 +197,42 @@ describe('Integration: Complete Module Generation', () => {
     }
 
     const controllerContent = fs.readFileSync(
-      path.join(outputDir, 'src/user/controller/UserController.ts'),
+      path.join(outputDir, 'src/controller/UserController.ts'),
       'utf-8'
     );
-    // user.yml has auth enabled, so check for auth import
-    expect(controllerContent).toContain('Auth');
-    expect(controllerContent).toContain('Roles');
+    // 框架不提供 @Auth/@Roles，由项目自行实现
+    expect(controllerContent).not.toContain('@Auth');
+    expect(controllerContent).not.toContain('@Roles');
+  });
+
+  it('should generate AuthAspect and @Before when auth is enabled', async () => {
+    const spec = GeneratorPipeline.buildSpecFromOptions('order', {
+      apiType: 'rest',
+      auth: 'admin',
+      softDelete: false,
+      pagination: true,
+    });
+
+    const pipeline = new GeneratorPipeline(spec, {
+      workingDirectory: outputDir,
+    });
+
+    // 需要至少一个 field 才能通过验证
+    pipeline.mergeOptions({
+      inlineFieldsJson: '{"name":{"type":"string","required":true},"price":{"type":"number"}}',
+    });
+
+    const changeset = await pipeline.execute();
+
+    const filePaths = changeset.getChanges().map((f) => f.path);
+
+    // auth 启用时应生成 AuthAspect 切面文件
+    expect(filePaths).toContain('src/aspect/AuthAspect.ts');
+
+    // Controller 中应使用 @Before("AuthAspect")
+    const controllerChange = changeset.getChanges().find((f) => f.path.includes('Controller'));
+    expect(controllerChange?.content).toContain('@BeforeEach("AuthAspect")');
+    expect(controllerChange?.content).not.toContain('@Auth');
+    expect(controllerChange?.content).not.toContain('@Roles');
   });
 });

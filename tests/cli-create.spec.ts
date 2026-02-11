@@ -88,8 +88,12 @@ describe('CLI Create Command Templates', () => {
 
     expect(content).toContain('@Aspect()');
     expect(content).toContain('export class LoggingAspect');
+    expect(content).toContain('implements IAspect');
     expect(content).toContain('app: App');
-    expect(content).toContain('run()');
+    expect(content).toContain('run(args: any[], proceed?: Function, options?: any)');
+    // 应包含 options.target 获取 ctx 的说明
+    expect(content).toContain('options?.target?.ctx');
+    expect(content).toContain('ctx.requestHeader');
   });
 
   it('should render exception template', async () => {

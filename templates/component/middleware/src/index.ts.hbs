@@ -1,0 +1,17 @@
+import { KoattyContext, Middleware, IMiddleware, KoattyNext } from 'koatty';
+
+const defaultOpt = {};
+
+@Middleware()
+export class {{className}} implements IMiddleware {
+  run(options: any, app: any) {
+    options = { ...defaultOpt, ...options };
+    return async (ctx: KoattyContext, next: KoattyNext) => {
+      // Pre-processing logic
+
+      await next();
+
+      // Post-processing logic
+    };
+  }
+}

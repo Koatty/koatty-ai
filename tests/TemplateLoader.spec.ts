@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 describe('TemplateLoader', () => {
-  const testDir = path.join(__dirname, '../templates/test');
+  const testDir = path.join(__dirname, '../templates/modules/test');
   const testFile = path.join(testDir, 'hello.hbs');
 
   beforeAll(() => {

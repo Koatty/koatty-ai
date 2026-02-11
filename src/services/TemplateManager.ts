@@ -86,7 +86,20 @@ const BINARY_EXTENSIONS = new Set([
 
 /**
  * 模板管理器
- * 负责从 submodule/缓存/远程获取模板，支持模板渲染
+ *
+ * templates/ 目录具有双重角色：
+ *   1. **Git Submodule（开发期）**：templates/{project,modules,component} 三个子目录
+ *      分别对应外部模板仓库的 submodule checkout，开发者可直接修改、提交模板变更。
+ *   2. **内置模板（发布期）**：npm publish 时 submodule 内容随包一起发布，
+ *      作为 CLI 工具的内置（bundled）模板。
+ *
+ * 用户可通过 `koatty template update` 将最新模板下载到用户级缓存目录
+ * （默认 ~/.koatty/templates/），缓存优先于内置模板被使用。
+ *
+ * 模板解析优先级（三级降级）：
+ *   用户缓存 (~/.koatty/templates/{type})
+ *     → 内置 submodule (templates/{type})
+ *       → 远程下载（git clone 到缓存目录）
  */
 export class TemplateManager {
   /** 模板仓库地址配置 */
@@ -105,9 +118,9 @@ export class TemplateManager {
     },
   };
 
-  /** 缓存目录 */
+  /** 用户级缓存目录（默认 ~/.koatty/templates/） */
   private cacheDir: string;
-  /** submodule 目录 */
+  /** 内置 submodule 目录（默认 templates/，随 npm 包发布） */
   private submoduleDir: string;
   /** Handlebars helpers 是否已注册 */
   private static helpersRegistered = false;
@@ -189,46 +202,48 @@ export class TemplateManager {
   }
 
   /**
-   * 获取模板路径（三级降级：submodule → 缓存 → 远程下载）
+   * 获取模板路径（三级降级：用户缓存 → 内置 submodule → 远程下载）
+   *
+   * 优先级说明：
+   *   1. 用户缓存 (~/.koatty/templates/{type})：用户通过 `koatty template update`
+   *      主动下载的最新版本，应当优先使用。
+   *   2. 内置 submodule (templates/{type})：随 npm 包发布的内置模板快照。
+   *   3. 远程下载：如果上述两者均不可用，自动从远程仓库 clone 到缓存目录。
+   *
    * @param type 模板类型
    * @returns 模板目录路径
    */
   public async getTemplatePath(type: TemplateType): Promise<string> {
-    // 1. 检查 submodule 路径
-    const submodulePath = this.getSubmodulePath(type);
-    if (this.isValidTemplateDir(submodulePath)) {
-      return submodulePath;
-    }
-
-    // 2. 检查缓存目录
+    // 1. 优先检查用户缓存（koatty template update 下载的最新版本）
     const cachePath = this.getCachePath(type);
     if (this.isValidTemplateDir(cachePath)) {
       return cachePath;
     }
 
-    // 3. 从远程下载
+    // 2. 检查内置 submodule（随包发布的模板快照）
+    const submodulePath = this.getSubmodulePath(type);
+    if (this.isValidTemplateDir(submodulePath)) {
+      return submodulePath;
+    }
+
+    // 3. 从远程下载到缓存目录
     await this.downloadTemplate(type);
     return cachePath;
   }
 
   /**
-   * 获取 submodule 路径
+   * 获取内置 submodule 路径
    * @param type 模板类型
-   * @returns submodule 目录路径
+   * @returns templates/{type} 路径
    */
   private getSubmodulePath(type: TemplateType): string {
-    // 对于 'modules' 类型，当前 templates/ 目录结构直接包含模板
-    // 对于其他类型，路径为 templates/{type}
-    if (type === 'modules') {
-      return this.submoduleDir;
-    }
     return path.join(this.submoduleDir, type);
   }
 
   /**
-   * 获取缓存路径
+   * 获取用户级缓存路径
    * @param type 模板类型
-   * @returns 缓存目录路径
+   * @returns ~/.koatty/templates/{type} 路径
    */
   private getCachePath(type: TemplateType): string {
     return path.join(this.cacheDir, type);
@@ -329,17 +344,69 @@ export class TemplateManager {
   }
 
   /**
-   * 获取缓存目录路径（供后续任务使用）
+   * 获取缓存目录路径
    */
   public getCacheDir(): string {
     return this.cacheDir;
   }
 
   /**
-   * 获取 submodule 目录路径（供测试使用）
+   * 获取 submodule 目录路径
    */
   public getSubmoduleDir(): string {
     return this.submoduleDir;
+  }
+
+  /**
+   * 获取某类模板的详细状态
+   * @param type 模板类型
+   */
+  public getTemplateStatus(type: TemplateType): {
+    type: TemplateType;
+    /** 实际解析使用的路径（null 表示不可用） */
+    activePath: string | null;
+    /** 来源标识 */
+    source: 'cache' | 'bundled' | 'none';
+    /** 用户缓存路径及是否可用 */
+    cache: { path: string; valid: boolean; updatedAt: Date | null };
+    /** 内置 submodule 路径及是否可用 */
+    bundled: { path: string; valid: boolean };
+  } {
+    const cachePath = this.getCachePath(type);
+    const submodulePath = this.getSubmodulePath(type);
+
+    const cacheValid = this.isValidTemplateDir(cachePath);
+    const bundledValid = this.isValidTemplateDir(submodulePath);
+
+    // 获取缓存目录最近修改时间
+    let cacheUpdatedAt: Date | null = null;
+    if (cacheValid) {
+      try {
+        const stat = fs.statSync(cachePath);
+        cacheUpdatedAt = stat.mtime;
+      } catch {
+        // ignore
+      }
+    }
+
+    let activePath: string | null = null;
+    let source: 'cache' | 'bundled' | 'none' = 'none';
+
+    if (cacheValid) {
+      activePath = cachePath;
+      source = 'cache';
+    } else if (bundledValid) {
+      activePath = submodulePath;
+      source = 'bundled';
+    }
+
+    return {
+      type,
+      activePath,
+      source,
+      cache: { path: cachePath, valid: cacheValid, updatedAt: cacheUpdatedAt },
+      bundled: { path: submodulePath, valid: bundledValid },
+    };
   }
 
   /**

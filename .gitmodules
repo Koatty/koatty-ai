@@ -1,0 +1,11 @@
+[submodule "templates/project"]
+	path = templates/project
+	url = https://github.com/koatty/koatty-ai-template-project.git
+
+[submodule "templates/modules"]
+	path = templates/modules
+	url = https://github.com/koatty/koatty-ai-template-modules.git
+
+[submodule "templates/component"]
+	path = templates/component
+	url = https://github.com/koatty/koatty-ai-template-component.git

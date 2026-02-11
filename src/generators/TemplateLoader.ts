@@ -49,7 +49,7 @@ export class TemplateLoader {
     // 确保 helpers 已注册
     this.registerHelpers();
 
-    const templatesDir = path.join(__dirname, '../../templates');
+    const templatesDir = path.join(__dirname, '../../templates/modules');
     const fullPath = path.isAbsolute(templatePath)
       ? templatePath
       : path.join(templatesDir, templatePath);

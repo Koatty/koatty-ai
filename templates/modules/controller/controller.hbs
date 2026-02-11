@@ -1,11 +1,11 @@
-import { Controller, GetMapping, PostMapping, PutMapping, DeleteMapping, PathVariable, RequestBody, Query as QueryParam, Autowired, KoattyContext } from 'koatty';
+import { Controller, GetMapping, PostMapping, PutMapping, DeleteMapping, PathVariable, RequestBody, Query as QueryParam, Autowired, KoattyContext{{#if auth.enabled}}, BeforeEach{{/if}} } from 'koatty';
 import { Validated } from 'koatty_validation';
 import { {{pascalCase module}}Service } from '../service/{{pascalCase module}}Service';
 import { Create{{pascalCase module}}Dto, Update{{pascalCase module}}Dto, Query{{pascalCase module}}Dto } from '../dto/{{pascalCase module}}Dto';
-{{#if auth.enabled}}
-  import { Auth, Roles } from 'koatty';
-{{/if}}
 
+{{#if auth.enabled}}
+@BeforeEach("AuthAspect")
+{{/if}}
 @Controller('{{#if api.basePath}}{{api.basePath}}{{else}}/{{lowerCase module}}{{/if}}')
 export class {{pascalCase module}}Controller {
   @Autowired()
@@ -21,8 +21,6 @@ export class {{pascalCase module}}Controller {
    * 分页列表
    */
   @GetMapping('/')
-  {{#if auth.enabled}}@Auth(){{/if}}
-  {{#if auth.defaultRoles}}@Roles({{json auth.defaultRoles}}){{/if}}
   async list(@QueryParam() query: Query{{pascalCase module}}Dto) {
     const data = await this.{{camelCase module}}Service.findAll(query);
     return this.ok(data);
@@ -42,8 +40,6 @@ export class {{pascalCase module}}Controller {
    */
   @PostMapping('/')
   @Validated()
-  {{#if auth.enabled}}@Auth(){{/if}}
-  {{#if auth.defaultRoles}}@Roles({{json auth.defaultRoles}}){{/if}}
   async create(@RequestBody() dto: Create{{pascalCase module}}Dto) {
     const data = await this.{{camelCase module}}Service.create(dto);
     return this.ok(data);
@@ -54,8 +50,6 @@ export class {{pascalCase module}}Controller {
    */
   @PutMapping('/:id')
   @Validated()
-  {{#if auth.enabled}}@Auth(){{/if}}
-  {{#if auth.defaultRoles}}@Roles({{json auth.defaultRoles}}){{/if}}
   async update(
     @PathVariable('id') id: number,
     @RequestBody() dto: Update{{pascalCase module}}Dto
@@ -68,8 +62,6 @@ export class {{pascalCase module}}Controller {
    * 删除
    */
   @DeleteMapping('/:id')
-  {{#if auth.enabled}}@Auth(){{/if}}
-  {{#if auth.defaultRoles}}@Roles({{json auth.defaultRoles}}){{/if}}
   async remove(@PathVariable('id') id: number) {
     await this.{{camelCase module}}Service.{{#if features.softDelete}}softDelete{{else}}delete{{/if}}(id);
     return this.ok();

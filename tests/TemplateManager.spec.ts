@@ -139,19 +139,34 @@ describe('TemplateManager', () => {
   });
 
   describe('getTemplatePath', () => {
-    it('should return submodule path when valid modules directory exists', async () => {
-      // 创建有效的 modules 模板目录
-      const modulesDir = path.join(tempDir, 'templates');
+    it('should prefer cache over bundled submodule', async () => {
+      // 同时创建 cache 和 submodule，cache 应当优先
+      const cacheDir = path.join(tempDir, 'priority-cache');
+      const submoduleDir = path.join(tempDir, 'priority-bundled');
+      const cacheModules = path.join(cacheDir, 'modules');
+      const subModules = path.join(submoduleDir, 'modules');
+      fs.mkdirSync(cacheModules, { recursive: true });
+      fs.mkdirSync(subModules, { recursive: true });
+      fs.writeFileSync(path.join(cacheModules, 'cached.hbs'), 'cached');
+      fs.writeFileSync(path.join(subModules, 'bundled.hbs'), 'bundled');
+
+      const tm = new TemplateManager({ cacheDir, submoduleDir });
+      const result = await tm.getTemplatePath('modules');
+      expect(result).toBe(cacheModules);
+    });
+
+    it('should fallback to bundled submodule when cache is empty', async () => {
+      const baseDir = path.join(tempDir, 'templates');
+      const modulesDir = path.join(baseDir, 'modules');
       fs.mkdirSync(modulesDir, { recursive: true });
       fs.writeFileSync(path.join(modulesDir, 'template.hbs'), 'content');
 
-      const tm = new TemplateManager({ submoduleDir: modulesDir });
+      const tm = new TemplateManager({ submoduleDir: baseDir });
       const result = await tm.getTemplatePath('modules');
       expect(result).toBe(modulesDir);
     });
 
     it('should return submodule path for project type when valid directory exists', async () => {
-      // 创建有效的 project 模板目录
       const baseDir = path.join(tempDir, 'templates2');
       const projectDir = path.join(baseDir, 'project');
       fs.mkdirSync(projectDir, { recursive: true });
@@ -161,9 +176,53 @@ describe('TemplateManager', () => {
       const result = await tm.getTemplatePath('project');
       expect(result).toBe(projectDir);
     });
+  });
 
-    // Note: The following tests are now covered in "getTemplatePath with fallback" section
-    // because getTemplatePath now attempts to download from remote when local is not available
+  describe('getTemplateStatus', () => {
+    it('should report cache as source when cache is valid', () => {
+      const cacheDir = path.join(tempDir, 'status-cache');
+      const submoduleDir = path.join(tempDir, 'status-bundled');
+      const cacheModules = path.join(cacheDir, 'modules');
+      fs.mkdirSync(cacheModules, { recursive: true });
+      fs.writeFileSync(path.join(cacheModules, 'template.hbs'), 'content');
+
+      const tm = new TemplateManager({ cacheDir, submoduleDir });
+      const status = tm.getTemplateStatus('modules');
+
+      expect(status.source).toBe('cache');
+      expect(status.activePath).toBe(cacheModules);
+      expect(status.cache.valid).toBe(true);
+      expect(status.cache.updatedAt).not.toBeNull();
+      expect(typeof status.cache.updatedAt!.getTime).toBe('function');
+      expect(status.bundled.valid).toBe(false);
+    });
+
+    it('should report bundled as source when only submodule is valid', () => {
+      const submoduleDir = path.join(tempDir, 'status-bundled2');
+      const modulesDir = path.join(submoduleDir, 'modules');
+      fs.mkdirSync(modulesDir, { recursive: true });
+      fs.writeFileSync(path.join(modulesDir, 'template.hbs'), 'content');
+
+      const tm = new TemplateManager({ submoduleDir });
+      const status = tm.getTemplateStatus('modules');
+
+      expect(status.source).toBe('bundled');
+      expect(status.activePath).toBe(modulesDir);
+      expect(status.bundled.valid).toBe(true);
+    });
+
+    it('should report none when neither is available', () => {
+      const tm = new TemplateManager({
+        cacheDir: '/nonexistent-cache',
+        submoduleDir: '/nonexistent-sub',
+      });
+      const status = tm.getTemplateStatus('modules');
+
+      expect(status.source).toBe('none');
+      expect(status.activePath).toBeNull();
+      expect(status.cache.valid).toBe(false);
+      expect(status.bundled.valid).toBe(false);
+    });
   });
 
   describe('renderTemplate', () => {
@@ -630,19 +689,7 @@ describe('TemplateManager', () => {
       mockHttpsGet.mockReset();
     });
 
-    it('should return submodule path when valid', async () => {
-      const submoduleDir = path.join(tempDir, 'fallback-submodule');
-      fs.mkdirSync(submoduleDir, { recursive: true });
-      fs.writeFileSync(path.join(submoduleDir, 'template.hbs'), 'content');
-
-      const tm = new TemplateManager({ submoduleDir });
-      const result = await tm.getTemplatePath('modules');
-
-      expect(result).toBe(submoduleDir);
-      expect(mockExec).not.toHaveBeenCalled();
-    });
-
-    it('should return cache path when submodule not valid but cache exists', async () => {
+    it('should return cache path when cache is valid (cache has priority)', async () => {
       const cacheDir = path.join(tempDir, 'fallback-cache');
       const cacheModulesDir = path.join(cacheDir, 'modules');
       fs.mkdirSync(cacheModulesDir, { recursive: true });
@@ -655,6 +702,19 @@ describe('TemplateManager', () => {
       const result = await tm.getTemplatePath('modules');
 
       expect(result).toBe(cacheModulesDir);
+      expect(mockExec).not.toHaveBeenCalled();
+    });
+
+    it('should fallback to submodule when cache not valid', async () => {
+      const submoduleDir = path.join(tempDir, 'fallback-submodule');
+      const modulesDir = path.join(submoduleDir, 'modules');
+      fs.mkdirSync(modulesDir, { recursive: true });
+      fs.writeFileSync(path.join(modulesDir, 'template.hbs'), 'content');
+
+      const tm = new TemplateManager({ submoduleDir });
+      const result = await tm.getTemplatePath('modules');
+
+      expect(result).toBe(modulesDir);
       expect(mockExec).not.toHaveBeenCalled();
     });
 
@@ -707,13 +767,14 @@ describe('TemplateManager', () => {
 
     it('should use existing template when force is false', async () => {
       const submoduleDir = path.join(tempDir, 'ensure-existing');
-      fs.mkdirSync(submoduleDir, { recursive: true });
-      fs.writeFileSync(path.join(submoduleDir, 'template.hbs'), 'content');
+      const modulesDir = path.join(submoduleDir, 'modules');
+      fs.mkdirSync(modulesDir, { recursive: true });
+      fs.writeFileSync(path.join(modulesDir, 'template.hbs'), 'content');
 
       const tm = new TemplateManager({ submoduleDir });
       const result = await tm.ensureTemplateRepo('modules');
 
-      expect(result).toBe(submoduleDir);
+      expect(result).toBe(modulesDir);
       expect(mockExec).not.toHaveBeenCalled();
     });
 

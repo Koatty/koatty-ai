@@ -17,7 +17,7 @@ describe('DtoGenerator', () => {
 
     const changes = cs.getChanges();
     expect(changes.length).toBe(1);
-    expect(changes[0].path).toBe('src/user/dto/UserDto.ts');
+    expect(changes[0].path).toBe('src/dto/UserDto.ts');
     expect(changes[0].content).toContain('export class CreateUserDto');
     expect(changes[0].content).toContain('export class UpdateUserDto');
   });

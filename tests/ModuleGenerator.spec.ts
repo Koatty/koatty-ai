@@ -17,14 +17,11 @@ describe('ModuleGenerator', () => {
     await generator.generate();
 
     const changes = cs.getChanges();
-    // 1 model, 1 dto, 1 service, 1 controller, 1 index
-    expect(changes.length).toBe(5);
-    expect(changes.some((c) => c.path.includes('src/user/model/UserModel.ts'))).toBe(true);
-    expect(changes.some((c) => c.path.includes('src/user/dto/UserDto.ts'))).toBe(true);
-    expect(changes.some((c) => c.path.includes('src/user/service/UserService.ts'))).toBe(true);
-    expect(changes.some((c) => c.path.includes('src/user/index.ts'))).toBe(true);
-    expect(changes.some((c) => c.path.includes('src/user/controller/UserController.ts'))).toBe(
-      true
-    );
+    // 1 model, 1 dto, 1 service, 1 controller（不再生成 index.ts）
+    expect(changes.length).toBe(4);
+    expect(changes.some((c) => c.path === 'src/model/UserModel.ts')).toBe(true);
+    expect(changes.some((c) => c.path === 'src/dto/UserDto.ts')).toBe(true);
+    expect(changes.some((c) => c.path === 'src/service/UserService.ts')).toBe(true);
+    expect(changes.some((c) => c.path === 'src/controller/UserController.ts')).toBe(true);
   });
 });

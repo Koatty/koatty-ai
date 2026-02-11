@@ -1,0 +1,17 @@
+import { KoattyContext, Controller, GetMapping } from 'koatty';
+import { App } from '../App';
+
+@Controller('/')
+export class IndexController {
+  app: App;
+  ctx: KoattyContext;
+
+  constructor(ctx: KoattyContext) {
+    this.ctx = ctx;
+  }
+
+  @GetMapping('/')
+  async index() {
+    return this.ok('Hello, Koatty!');
+  }
+}

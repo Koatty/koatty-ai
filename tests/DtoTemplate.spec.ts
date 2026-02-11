@@ -7,7 +7,7 @@ describe('DTO Template', () => {
   });
 
   it('should render valid DTOs', async () => {
-    const templatePath = path.join(__dirname, '../templates/dto/dto.hbs');
+    const templatePath = path.join(__dirname, '../templates/modules/dto/dto.hbs');
     const template = await TemplateLoader.compileTemplate(templatePath);
 
     const context = {

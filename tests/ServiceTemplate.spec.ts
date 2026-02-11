@@ -7,7 +7,7 @@ describe('Service Template', () => {
   });
 
   it('should render a valid Service class', async () => {
-    const templatePath = path.join(__dirname, '../templates/service/service.hbs');
+    const templatePath = path.join(__dirname, '../templates/modules/service/service.hbs');
     const template = await TemplateLoader.compileTemplate(templatePath);
 
     const context = {
@@ -25,5 +25,9 @@ describe('Service Template', () => {
     expect(result).toContain('async findAll(query: QueryUserDto)');
     expect(result).toContain('async create(dto: CreateUserDto)');
     expect(result).toContain('async softDelete(id: number)');
+    // 使用 TypeORM 标准 API
+    expect(result).toContain('findAndCount');
+    expect(result).toContain('findOneBy');
+    expect(result).toContain('softRemove');
   });
 });

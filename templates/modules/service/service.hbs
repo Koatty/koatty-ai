@@ -12,35 +12,43 @@ export class {{pascalCase module}}Service {
    */
   async findAll(query: Query{{pascalCase module}}Dto) {
     const { page = 1, pageSize = 10, ...filters } = query;
-    return this.{{camelCase module}}Model.list(filters, page, pageSize);
+    const [list, total] = await {{pascalCase module}}Model.findAndCount({
+      where: filters as any,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      order: { id: 'DESC' },
+    });
+    return { list, total, page, pageSize };
   }
 
   /**
    * 根据 ID 查询
    */
   async findById(id: number) {
-    return this.{{camelCase module}}Model.get(id);
+    return {{pascalCase module}}Model.findOneBy({ id });
   }
 
   /**
    * 创建
    */
   async create(dto: Create{{pascalCase module}}Dto) {
-    return this.{{camelCase module}}Model.add(dto);
+    const entity = {{pascalCase module}}Model.create(dto as any);
+    return {{pascalCase module}}Model.save(entity);
   }
 
   /**
    * 更新
    */
   async update(id: number, dto: Update{{pascalCase module}}Dto) {
-    return this.{{camelCase module}}Model.update(id, dto);
+    await {{pascalCase module}}Model.update(id, dto as any);
+    return {{pascalCase module}}Model.findOneBy({ id });
   }
 
   /**
    * 删除
    */
   async delete(id: number) {
-    return this.{{camelCase module}}Model.delete(id);
+    return {{pascalCase module}}Model.delete(id);
   }
 
   {{#if features.softDelete}}
@@ -48,9 +56,9 @@ export class {{pascalCase module}}Service {
    * 软删除
    */
   async softDelete(id: number) {
-    return this.{{camelCase module}}Model.update(id, {
-      deletedAt: new Date()
-    });
+    return {{pascalCase module}}Model.softRemove(
+      await {{pascalCase module}}Model.findOneByOrFail({ id })
+    );
   }
   {{/if}}
 }
