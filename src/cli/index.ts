@@ -12,6 +12,7 @@ import { registerPlanCommand } from './commands/plan';
 import { registerApplyCommand } from './commands/apply';
 import { registerCreateCommands } from './commands/registerCreate';
 import { registerTemplateCommand } from './commands/template';
+import { registerSql2YmlCommand } from './commands/sql2yml';
 
 const program = new Command();
 
@@ -28,6 +29,7 @@ registerGenerateCommand(program);
 registerPlanCommand(program);
 registerApplyCommand(program);
 registerTemplateCommand(program);
+registerSql2YmlCommand(program);
 
 program.parse(process.argv);
 
