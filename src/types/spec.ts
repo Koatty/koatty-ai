@@ -29,7 +29,7 @@ export interface ApiEndpoint {
 }
 
 export interface ApiConfig {
-  type?: 'rest' | 'graphql';
+  type?: 'rest' | 'grpc' | 'graphql';
   basePath: string;
   endpoints: ApiEndpoint[];
 }

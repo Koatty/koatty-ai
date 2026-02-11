@@ -8,6 +8,7 @@ import * as path from 'path';
 import { isKoattyApp } from '../../utils/koattyProject';
 import { TemplateLoader } from '../../generators/TemplateLoader';
 import { QualityService } from '../../utils/QualityService';
+import { addProtocolToServerConfig } from '../../utils/serverConfigPatcher';
 
 export type CreateModuleOptions = {
   type?: string; // controller: http|grpc|websocket|graphql; model: typeorm|thinkorm
@@ -20,9 +21,9 @@ export type CreateModuleOptions = {
  */
 const CONTROLLER_TYPE_MAP: Record<string, string> = {
   http: 'controller/simple.hbs',
-  grpc: 'controller/simple.hbs', // 暂时使用相同模板
-  websocket: 'controller/simple.hbs',
-  graphql: 'controller/simple.hbs',
+  grpc: 'controller/grpc-simple.hbs',
+  websocket: 'controller/websocket-simple.hbs',
+  graphql: 'controller/graphql-simple.hbs',
 };
 
 /**
@@ -65,21 +66,37 @@ function buildContext(
 ): Record<string, unknown> {
   const baseName = name.split('/').pop() || name;
   const skipSuffix = moduleType === 'model' || moduleType === 'proto';
-  const className = toPascal(baseName) + (skipSuffix ? '' : toPascal(moduleType));
+  const ctrlType = options?.type?.toLowerCase();
+  const isGrpcController = moduleType === 'controller' && ctrlType === 'grpc';
+  const isWebSocketController = moduleType === 'controller' && (ctrlType === 'websocket' || ctrlType === 'ws');
+  const isGraphQLController = moduleType === 'controller' && ctrlType === 'graphql';
+  const isSpecialController = isGrpcController || isWebSocketController || isGraphQLController;
+  const suffix = isGrpcController
+    ? 'GrpcController'
+    : isWebSocketController
+      ? 'WebSocketController'
+      : isGraphQLController
+        ? 'GraphQLController'
+        : toPascal(moduleType);
+  const className = toPascal(baseName) + (skipSuffix ? '' : suffix);
   const moduleName = baseName.toLowerCase();
 
-  return {
-    // 新版标准变量（Handlebars 格式）
+  const ctx: Record<string, unknown> = {
     className,
     moduleName,
     module: moduleName,
     subPath: '..',
-    // 兼容旧变量（旧模板格式）
     _CLASS_NAME: className,
     _NEW: baseName,
     _SUB_PATH: '..',
-    _CAMEL_NAME: toCamel(baseName) + toPascal(moduleType),
+    _CAMEL_NAME: toCamel(baseName) + suffix,
   };
+  if (isSpecialController) {
+    ctx.baseClassName = toPascal(baseName);
+    ctx.baseCamelName = toCamel(baseName);
+    ctx.camelName = toCamel(baseName);
+  }
+  return ctx;
 }
 
 /**
@@ -142,30 +159,77 @@ export async function runCreateModule(
   }
   const outPath = path.join(appPath, outDir, `${fileName}${ext}`);
 
-  // 写入文件
   const written: string[] = [];
+  const ctrlType = options?.type?.toLowerCase();
+  const isGrpcController = moduleType === 'controller' && ctrlType === 'grpc';
+  const overwriteOnExist = isGrpcController; // grpc controller 可重复执行以应用变更
+  const throwOnExist = [
+    'service',
+    'middleware',
+    'plugin',
+    'aspect',
+    'dto',
+    'exception',
+    'model',
+    'proto',
+  ].includes(moduleType);
 
-  function writeFile(filePath: string, fileContent: string): void {
+  function writeFile(
+    filePath: string,
+    fileContent: string,
+    opts?: { overwrite?: boolean; throwExists?: boolean }
+  ): void {
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
     if (fs.existsSync(filePath)) {
-      console.error(`文件已存在，跳过: ${filePath}`);
-      return;
+      if (opts?.throwExists) {
+        console.error(`\n❌ 文件已存在: ${filePath}`);
+        console.error('   请勿重复创建，或先删除/重命名后再试。');
+        process.exit(1);
+      }
+      if (!opts?.overwrite) {
+        return; // 跳过已存在
+      }
     }
     fs.writeFileSync(filePath, fileContent, 'utf-8');
     written.push(filePath);
   }
 
-  writeFile(outPath, content);
+  // controller -t grpc: 先创建 proto（若不存在），再创建 controller
+  if (isGrpcController) {
+    const protoDir = path.join(appPath, 'resource', 'proto');
+    const protoPath = path.join(protoDir, `${context.moduleName}.proto`);
+    if (fs.existsSync(protoPath)) {
+      console.log('\n📄 proto 已存在，可直接修改 proto 文件。');
+      console.log('   修改后再次执行 koatty controller ' + baseName + ' -t grpc 使变更生效。\n');
+    } else {
+      const protoContent = await TemplateLoader.render('proto/crud.hbs', context, 'modules');
+      writeFile(protoPath, protoContent);
+    }
+  }
+
+  writeFile(outPath, content, {
+    overwrite: overwriteOnExist,
+    throwExists: throwOnExist,
+  });
 
   // 处理 service interface 选项
   if (moduleType === 'service' && options?.interface) {
     const ifaceName = `I${context.className}`;
     const ifaceContent = `/*\n * @Description: Service 接口\n */\n\nexport interface ${ifaceName} {\n  // todo\n}\n`;
     const ifacePath = path.join(appPath, 'service', `${ifaceName}.ts`);
-    writeFile(ifacePath, ifaceContent);
+    writeFile(ifacePath, ifaceContent, { throwExists: true });
+  }
+
+  // controller -t grpc/graphql/websocket: 更新 config/server.ts 的 protocol
+  if (moduleType === 'controller' && ['grpc', 'graphql', 'websocket', 'ws'].includes(ctrlType || '')) {
+    const patched = addProtocolToServerConfig(process.cwd(), ctrlType || '');
+    if (patched) {
+      written.push(path.join(process.cwd(), 'src/config/server.ts'));
+      console.log('\n📄 已更新 src/config/server.ts，已添加 protocol');
+    }
   }
 
   if (written.length > 0) {

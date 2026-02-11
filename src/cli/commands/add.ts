@@ -1,10 +1,9 @@
 import { Command } from 'commander';
 import { GeneratorPipeline } from '../../pipeline/GeneratorPipeline';
 import { ChangeSetFormatter } from '../../changeset/ChangeSetFormatter';
-import { getDefaultFieldsForModule, parseFieldShortSpec } from '../utils/defaultSpecs';
 import { createReadlineInterface, promptForModule } from '../utils/prompt';
 import { Spec } from '../../types/spec';
-import { runCreateAll } from './create';
+import { SpecParser } from '../../parser/SpecParser';
 import { QualityService } from '../../utils/QualityService';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -12,17 +11,7 @@ import * as yaml from 'yaml';
 import ora from 'ora';
 
 interface AddCommandOptions {
-  yes?: boolean;
-  fields?: string;
-  apply?: boolean;
-  saveSpec?: boolean;
-  api?: string;
-  auth?: string | boolean;
-  softDelete?: boolean;
-  pagination?: boolean;
-  /** 仅搭建骨架：entity、service、controller、dto（原 all 能力） */
-  scaffold?: boolean;
-  /** scaffold 时 controller 类型：http|grpc|websocket|graphql */
+  /** API 类型，传入则跳过交互式问答中的 API 类型选择 */
   type?: string;
 }
 
@@ -35,7 +24,7 @@ function buildSpecFromInteractive(
     table: `${moduleName.toLowerCase()}s`,
     fields: result.fields,
     api: {
-      type: 'rest',
+      type: result.apiType,
       basePath: result.basePath,
       endpoints: [],
     },
@@ -71,18 +60,9 @@ export function registerAddCommand(program: Command) {
   const add = program
     .command('add')
     .alias('create')
-    .description('智能创建模块（无需先写 YAML，支持交互式与默认配置）')
+    .description('交互式创建模块（rest/grpc/graphql）')
     .argument('<module-name>', '模块名，如 user、product')
-    .option('-y, --yes', '使用该模块的推荐默认字段，不交互')
-    .option('--fields <spec>', '字段简写，如 "name:string username:string required email:string"')
-    .option('--apply', '生成后直接写入项目（等同再执行 apply）')
-    .option('--save-spec', '将本次配置保存为 <module>.yml')
-    .option('--api <type>', 'API 类型 rest|graphql', 'rest')
-    .option('--auth [roles]', '启用认证，可选角色逗号分隔')
-    .option('--soft-delete', '启用软删除')
-    .option('--pagination', '启用分页')
-    .option('--scaffold', '仅搭建骨架：entity、service、controller、dto（不生成完整 CRUD）')
-    .option('-t, --type <type>', 'scaffold 时 controller 类型: http|grpc|websocket|graphql', 'http')
+    .option('-t, --type <type>', 'API 类型 rest|grpc|graphql，传入则跳过交互式选择')
     .action(async (moduleName: string, options: AddCommandOptions) => {
       const name = moduleName.trim();
       if (!name) {
@@ -90,74 +70,31 @@ export function registerAddCommand(program: Command) {
         process.exit(1);
       }
 
-      if (options.scaffold) {
-        runCreateAll(name, { type: options.type });
-        return;
-      }
+      const apiType =
+        options.type && ['rest', 'grpc', 'graphql'].includes(options.type.toLowerCase())
+          ? (options.type.toLowerCase() as 'rest' | 'grpc' | 'graphql')
+          : undefined;
 
-      let spec: Spec;
-      let saveSpec = options.saveSpec ?? false;
-
-      if (options.yes) {
-        const fields = getDefaultFieldsForModule(name);
-        spec = {
-          module: name,
-          table: `${name.toLowerCase()}s`,
-          fields,
-          api: { type: 'rest', basePath: `/${name.toLowerCase()}`, endpoints: [] },
-          dto: { create: true, update: true, query: true },
-          auth: options.auth
-            ? {
-                enabled: true,
-                defaultRoles: typeof options.auth === 'string' ? options.auth.split(',') : ['user'],
-              }
-            : undefined,
-          features: {
-            softDelete: options.softDelete ?? true,
-            pagination: options.pagination ?? true,
-            search: true,
-            searchableFields: Object.keys(fields).filter(
-              (k) => !['id', 'createdAt', 'updatedAt'].includes(k)
-            ),
-          },
-        };
-      } else if (options.fields) {
-        const fields = parseFieldShortSpec(options.fields);
-        if (Object.keys(fields).length === 0) {
-          console.error('--fields 解析失败，请用格式: name:string email:string');
-          process.exit(1);
-        }
-        spec = {
-          module: name,
-          table: `${name.toLowerCase()}s`,
-          fields,
-          api: { type: 'rest', basePath: `/${name.toLowerCase()}`, endpoints: [] },
-          dto: { create: true, update: true, query: true },
-          auth: options.auth
-            ? {
-                enabled: true,
-                defaultRoles: typeof options.auth === 'string' ? options.auth.split(',') : ['user'],
-              }
-            : undefined,
-          features: {
-            softDelete: options.softDelete ?? false,
-            pagination: options.pagination ?? true,
-            search: true,
-            searchableFields: Object.keys(fields).filter(
-              (k) => !['id', 'createdAt', 'updatedAt'].includes(k)
-            ),
-          },
-        };
-      } else {
-        const rl = createReadlineInterface();
+      const cwd = process.cwd();
+      const ymlPath = path.join(cwd, `${name}.yml`);
+      let existingSpec: Spec | undefined;
+      if (fs.existsSync(ymlPath)) {
         try {
-          const result = await promptForModule(rl, name);
-          saveSpec = result.saveSpec;
-          spec = buildSpecFromInteractive(name, result);
-        } finally {
-          rl.close();
+          existingSpec = SpecParser.parseFile(ymlPath);
+        } catch {
+          existingSpec = undefined;
         }
       }
+
+      const rl = createReadlineInterface();
+      let result: Awaited<ReturnType<typeof promptForModule>>;
+      try {
+        result = await promptForModule(rl, name, { apiType, existingSpec });
+      } finally {
+        rl.close();
+      }
+
+      const spec = buildSpecFromInteractive(name, result);
 
       const spinner = ora(`正在生成模块: ${name}`).start();
       try {
@@ -165,9 +102,17 @@ export function registerAddCommand(program: Command) {
         const changeset = await pipeline.execute();
         spinner.succeed(`模块 ${name} 生成完成`);
 
+        // grpc/graphql: 更新 config/server.ts 的 protocol
+        const apiType = spec.api?.type;
+        if (apiType === 'grpc' || apiType === 'graphql') {
+          const { addProtocolToServerConfig } = await import('../../utils/serverConfigPatcher');
+          if (addProtocolToServerConfig(cwd, apiType)) {
+            console.log('\n📄 已更新 src/config/server.ts，已添加 protocol');
+          }
+        }
+
         console.log(ChangeSetFormatter.format(changeset));
 
-        const cwd = process.cwd();
         const csDir = path.join(cwd, '.koatty', 'changesets');
         if (!fs.existsSync(csDir)) {
           fs.mkdirSync(csDir, { recursive: true });
@@ -175,25 +120,31 @@ export function registerAddCommand(program: Command) {
         const csPath = path.join(csDir, `${changeset.id}.json`);
         changeset.save(csPath);
 
-        if (saveSpec) {
-          const ymlPath = path.join(cwd, `${name}.yml`);
-          fs.writeFileSync(ymlPath, specToYaml(spec), 'utf-8');
-          console.log(`\n📄 已保存配置: ${ymlPath}`);
-        }
+        fs.writeFileSync(ymlPath, specToYaml(spec), 'utf-8');
+        console.log(`\n📄 已保存配置: ${ymlPath}`);
 
-        if (options.apply) {
+        if (result.apply) {
           const { FileOperator } = await import('../../utils/FileOperator');
+          const { ensureBackupInGitignore } = await import('../../utils/gitignore');
           const appliedPaths: string[] = [];
+          const backupPaths: string[] = [];
           for (const change of changeset.getChanges()) {
             const fullPath = path.join(cwd, change.path);
             if (change.type === 'create' || change.type === 'modify') {
-              FileOperator.writeFile(fullPath, change.content || '');
+              const beforeCount = backupPaths.length;
+              FileOperator.writeFile(fullPath, change.content || '', true, (bp) => backupPaths.push(bp));
               console.log(`  ✅ ${change.type === 'create' ? '创建' : '修改'} ${change.path}`);
+              if (backupPaths.length > beforeCount) {
+                console.log(`     📦 备份: ${path.relative(cwd, backupPaths[backupPaths.length - 1])}`);
+              }
               appliedPaths.push(fullPath);
             } else if (change.type === 'delete') {
               FileOperator.deleteFile(fullPath);
               console.log(`  🗑️  删除 ${change.path}`);
             }
+          }
+          if (backupPaths.length > 0) {
+            ensureBackupInGitignore(cwd);
           }
           if (appliedPaths.length > 0) {
             const formatSpinner = ora('正在格式化...').start();
@@ -202,8 +153,7 @@ export function registerAddCommand(program: Command) {
           }
           console.log('\n✨ 已写入项目，可直接使用。');
         } else {
-          console.log(`\n✨ 预览完成。写入项目请执行: koatty apply --changeset ${csPath}`);
-          console.log(`   或下次使用: koatty add ${name} --apply`);
+          console.log(`\n✨ 预览完成。变更生效请执行: koatty apply ${name}`);
         }
       } catch (error) {
         spinner.fail(`生成失败: ${(error as Error).message}`);

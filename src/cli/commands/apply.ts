@@ -3,6 +3,7 @@ import { GeneratorPipeline } from '../../pipeline/GeneratorPipeline';
 import { ChangeSet } from '../../changeset/ChangeSet';
 import { FileOperator } from '../../utils/FileOperator';
 import { QualityService } from '../../utils/QualityService';
+import { ensureBackupInGitignore } from '../../utils/gitignore';
 import * as path from 'path';
 import * as fs from 'fs';
 import ora from 'ora';
@@ -18,20 +19,22 @@ export function registerApplyCommand(program: Command) {
   const apply = program
     .command('apply')
     .description('Apply generated changes to the project')
+    .argument('[module-name]', '模块名，将使用 <module>.yml 生成并应用（如 koatty add user 后执行 koatty apply user）')
     .option('--spec <path>', 'Path to YAML specification file')
     .option('--changeset <path>', 'Path to ChangeSet JSON file')
     .option('--no-validate', 'Skip quality checks (prettier, eslint, tsc)')
     .option('--commit', 'Auto commit changes to git', false)
-    .action(async (options: ApplyCommandOptions) => {
+    .action(async (moduleName: string | undefined, options: ApplyCommandOptions) => {
       const spinner = ora('Applying changes').start();
       try {
-        if (!options.spec && !options.changeset) {
-          spinner.fail('Either --spec <path> or --changeset <path> is required');
+        const specPath = options.spec ?? (moduleName ? `${moduleName.trim()}.yml` : undefined);
+        if (!specPath && !options.changeset) {
+          spinner.fail('请指定模块名（如 koatty apply user）或使用 --spec <path> / --changeset <path>');
           process.exit(1);
         }
 
         let changeset: ChangeSet;
-        let moduleName: string;
+        let resolvedModuleName: string;
 
         // Mode 1: Apply from ChangeSet JSON file
         if (options.changeset) {
@@ -42,18 +45,31 @@ export function registerApplyCommand(program: Command) {
           }
           spinner.text = `Applying changeset: ${options.changeset}`;
           changeset = ChangeSet.load(changesetPath);
-          moduleName = changeset.module;
+          resolvedModuleName = changeset.module;
         }
-        // Mode 2: Generate from Spec and apply
-        else if (options.spec) {
-          const specPath = path.resolve(process.cwd(), options.spec);
-          spinner.text = `Applying changes for: ${options.spec}`;
+        // Mode 2: Generate from Spec (YAML) and apply
+        else if (specPath) {
+          const resolvedSpecPath = path.resolve(process.cwd(), specPath);
+          if (!fs.existsSync(resolvedSpecPath)) {
+            spinner.fail(`YAML 文件不存在: ${specPath}，请先执行 koatty add ${moduleName?.trim() || 'name'}`);
+            process.exit(1);
+          }
+          spinner.text = `Applying changes for: ${specPath}`;
 
-          const pipeline = new GeneratorPipeline(specPath);
+          const pipeline = new GeneratorPipeline(resolvedSpecPath);
           changeset = await pipeline.execute();
-          moduleName = pipeline.getSpec().module;
+          resolvedModuleName = pipeline.getSpec().module;
+
+          // grpc/graphql: 更新 config/server.ts 的 protocol
+          const apiType = pipeline.getSpec().api?.type;
+          if (apiType === 'grpc' || apiType === 'graphql') {
+            const { addProtocolToServerConfig } = await import('../../utils/serverConfigPatcher');
+            if (addProtocolToServerConfig(process.cwd(), apiType)) {
+              console.log('  📄 已更新 src/config/server.ts，已添加 protocol');
+            }
+          }
         } else {
-          spinner.fail('Either --spec <path> or --changeset <path> is required');
+          spinner.fail('请指定模块名（如 koatty apply user）或使用 --spec <path> / --changeset <path>');
           process.exit(1);
         }
 
@@ -66,17 +82,22 @@ export function registerApplyCommand(program: Command) {
           }
         }
 
-        // Execute all changes
+        // Execute all changes（modify 时先备份原文件）
         let appliedCount = 0;
         const appliedFiles: string[] = [];
+        const backupPaths: string[] = [];
         for (const change of changeset.getChanges()) {
           const fullPath = path.isAbsolute(change.path)
             ? change.path
             : path.join(process.cwd(), change.path);
 
           if (change.type === 'create' || change.type === 'modify') {
-            FileOperator.writeFile(fullPath, change.content || '');
+            const beforeCount = backupPaths.length;
+            FileOperator.writeFile(fullPath, change.content || '', true, (bp) => backupPaths.push(bp));
             console.log(`  ✅ ${change.type === 'create' ? 'Created' : 'Modified'} ${change.path}`);
+            if (backupPaths.length > beforeCount) {
+              console.log(`     📦 备份: ${path.relative(process.cwd(), backupPaths[backupPaths.length - 1])}`);
+            }
             appliedCount++;
             appliedFiles.push(fullPath);
           } else if (change.type === 'delete') {
@@ -84,6 +105,10 @@ export function registerApplyCommand(program: Command) {
             console.log(`  🗑️  Deleted ${change.path}`);
             appliedCount++;
           }
+        }
+
+        if (backupPaths.length > 0) {
+          ensureBackupInGitignore(process.cwd());
         }
 
         // Quality checks (if requested)
@@ -111,7 +136,7 @@ export function registerApplyCommand(program: Command) {
 
           if (await git.isRepo()) {
             spinner.start('Committing changes to Git...');
-            await git.commit(`feat: generate module ${moduleName}`);
+            await git.commit(`feat: generate module ${resolvedModuleName}`);
             spinner.succeed('Changes committed successfully.');
           }
         }
