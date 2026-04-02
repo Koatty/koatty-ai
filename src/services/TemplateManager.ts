@@ -304,9 +304,9 @@ export class TemplateManager {
       await execAsync(`git clone --depth 1 ${fallbackUrl} ${targetDir}`);
     }
 
-    // 验证模板完整性
+    // Validate template integrity
     if (!this.isValidTemplateDir(targetDir)) {
-      throw new Error(`模板下载失败或内容为空: ${type}`);
+      throw new Error(`Template download failed or content is empty: ${type}`);
     }
   }
 
@@ -417,7 +417,7 @@ export class TemplateManager {
    */
   public renderTemplate(templatePath: string, context: Record<string, unknown>): string {
     if (!fs.existsSync(templatePath)) {
-      throw new Error(`模板文件不存在: ${templatePath}`);
+      throw new Error(`Template file does not exist: ${templatePath}`);
     }
 
     const source = fs.readFileSync(templatePath, 'utf-8');

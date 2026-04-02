@@ -63,7 +63,7 @@ export async function sql2yml(
   });
 
   if (tables.length === 0) {
-    throw new Error('未找到有效的 CREATE TABLE 语句');
+    throw new Error('No valid CREATE TABLE statements found');
   }
 
   // 应用用户指定的类型覆盖

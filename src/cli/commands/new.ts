@@ -54,7 +54,7 @@ export function registerNewCommand(program: Command) {
         const componentDir = await templateManager.ensureTemplateRepo('component');
         renderDir = path.join(componentDir, template);
         if (!fs.existsSync(renderDir)) {
-          throw new Error(`组件模板不存在: ${renderDir}`);
+          throw new Error(`Component template does not exist: ${renderDir}`);
         }
       }
 
