@@ -1,0 +1,1 @@
+{"version":3,"file":"SpecParser.d.ts","sourceRoot":"","sources":["SpecParser.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,IAAI,EAAE,MAAM,eAAe,CAAC;AAErC;;GAEG;AACH,qBAAa,UAAU;IACrB;;;OAGG;WACW,SAAS,CAAC,QAAQ,EAAE,MAAM,GAAG,IAAI;IAS/C;;;OAGG;WACW,SAAS,CAAC,UAAU,EAAE,MAAM,GAAG,IAAI;CAUlD"}

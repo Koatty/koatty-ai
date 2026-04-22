@@ -1,0 +1,1 @@
+{"version":3,"file":"ModuleGenerator.d.ts","sourceRoot":"","sources":["ModuleGenerator.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,SAAS,EAAE,MAAM,wBAAwB,CAAC;AACnD,OAAO,EAAE,IAAI,EAAE,MAAM,eAAe,CAAC;AAOrC;;;;;;;;;;;GAWG;AACH,qBAAa,eAAe;IAExB,OAAO,CAAC,IAAI;IACZ,OAAO,CAAC,SAAS;gBADT,IAAI,EAAE,IAAI,EACV,SAAS,EAAE,SAAS;IAG9B;;OAEG;IACU,QAAQ,IAAI,OAAO,CAAC,IAAI,CAAC;CAgBvC"}
