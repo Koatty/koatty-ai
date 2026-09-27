@@ -1,5 +1,9 @@
 import * as readline from 'readline';
-import { getDefaultFieldsForModule, hasDefaultForModule, parseFieldShortSpec } from './defaultSpecs';
+import {
+  getDefaultFieldsForModule,
+  hasDefaultForModule,
+  parseFieldShortSpec,
+} from './defaultSpecs';
 import { Field } from '../../types/spec';
 import { Spec } from '../../types/spec';
 
@@ -10,7 +14,11 @@ export function createReadlineInterface(): readline.Interface {
 /**
  * 询问单行输入
  */
-export function question(rl: readline.Interface, promptText: string, defaultValue?: string): Promise<string> {
+export function question(
+  rl: readline.Interface,
+  promptText: string,
+  defaultValue?: string
+): Promise<string> {
   const suffix = defaultValue !== undefined ? ` [${defaultValue}]` : '';
   return new Promise((resolve) => {
     rl.question(`${promptText}${suffix}: `, (answer) => {
@@ -78,7 +86,9 @@ export async function promptForModule(
   if (existing) {
     console.log('   当前字段: ' + Object.keys(existing.fields).join(', '));
   }
-  console.log('   字段格式示例: name:string username:string required email:string status:enum:active,inactive\n');
+  console.log(
+    '   字段格式示例: name:string username:string required email:string status:enum:active,inactive\n'
+  );
 
   const fieldInput = await question(rl, '字段定义（空格分隔，回车用默认）', fieldDefault);
 
@@ -100,7 +110,7 @@ export async function promptForModule(
       : defaultPath;
   const basePath =
     apiType === 'rest'
-      ? (await question(rl, 'API 路径', basePathDefault) || basePathDefault)
+      ? (await question(rl, 'API 路径', basePathDefault)) || basePathDefault
       : defaultPath;
   const authDefault = existing?.auth?.enabled ? 'y' : 'n';
   const authAnswer = await question(rl, '是否启用认证 (y/n)', authDefault);
@@ -109,7 +119,12 @@ export async function promptForModule(
   if (auth) {
     const rolesDefault = existing?.auth?.defaultRoles?.join(', ') ?? 'user';
     const rolesInput = await question(rl, '默认角色（逗号分隔）', rolesDefault);
-    authRoles = rolesInput ? rolesInput.split(',').map((r) => r.trim()).filter(Boolean) : ['user'];
+    authRoles = rolesInput
+      ? rolesInput
+          .split(',')
+          .map((r) => r.trim())
+          .filter(Boolean)
+      : ['user'];
   }
   const softDefault = existing?.features?.softDelete !== false ? 'y' : 'n';
   const softAnswer = await question(rl, '软删除 (y/n)', softDefault);

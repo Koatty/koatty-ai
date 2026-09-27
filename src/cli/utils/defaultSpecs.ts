@@ -20,7 +20,12 @@ const MODULE_DEFAULTS: Record<string, Record<string, Field>> = {
     name: { name: 'name', type: 'string', required: true },
     price: { name: 'price', type: 'number' },
     stock: { name: 'stock', type: 'number' },
-    status: { name: 'status', type: 'enum', values: ['draft', 'on_sale', 'off_sale'], default: 'draft' },
+    status: {
+      name: 'status',
+      type: 'enum',
+      values: ['draft', 'on_sale', 'off_sale'],
+      default: 'draft',
+    },
     createdAt: { name: 'createdAt', type: 'datetime', auto: true },
     updatedAt: { name: 'updatedAt', type: 'datetime', auto: true },
   },
@@ -28,7 +33,12 @@ const MODULE_DEFAULTS: Record<string, Record<string, Field>> = {
     id: { name: 'id', type: 'number', primary: true, auto: true },
     userId: { name: 'userId', type: 'number' },
     amount: { name: 'amount', type: 'number' },
-    status: { name: 'status', type: 'enum', values: ['pending', 'paid', 'shipped', 'completed'], default: 'pending' },
+    status: {
+      name: 'status',
+      type: 'enum',
+      values: ['pending', 'paid', 'shipped', 'completed'],
+      default: 'pending',
+    },
     createdAt: { name: 'createdAt', type: 'datetime', auto: true },
     updatedAt: { name: 'updatedAt', type: 'datetime', auto: true },
   },
@@ -65,10 +75,7 @@ export function getDefaultFieldsForModule(moduleName: string): Record<string, Fi
  */
 export function parseFieldShortSpec(input: string): Record<string, Field> {
   const fields: Record<string, Field> = {};
-  const parts = input
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  const parts = input.trim().split(/\s+/).filter(Boolean);
   const modifiers = new Set<string>(['required', 'unique', 'nullable']);
 
   for (const part of parts) {
@@ -95,7 +102,10 @@ export function parseFieldShortSpec(input: string): Record<string, Field> {
       type: typeLower as Field['type'],
     };
     if (rest !== undefined && typeLower === 'enum') {
-      field.values = rest.split(',').map((v) => v.trim()).filter(Boolean);
+      field.values = rest
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
       field.default = field.values[0];
     }
     fields[field.name] = field;

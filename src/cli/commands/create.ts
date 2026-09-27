@@ -68,7 +68,8 @@ function buildContext(
   const skipSuffix = moduleType === 'model' || moduleType === 'proto';
   const ctrlType = options?.type?.toLowerCase();
   const isGrpcController = moduleType === 'controller' && ctrlType === 'grpc';
-  const isWebSocketController = moduleType === 'controller' && (ctrlType === 'websocket' || ctrlType === 'ws');
+  const isWebSocketController =
+    moduleType === 'controller' && (ctrlType === 'websocket' || ctrlType === 'ws');
   const isGraphQLController = moduleType === 'controller' && ctrlType === 'graphql';
   const isSpecialController = isGrpcController || isWebSocketController || isGraphQLController;
   const suffix = isGrpcController
@@ -224,7 +225,10 @@ export async function runCreateModule(
   }
 
   // controller -t grpc/graphql/websocket: 更新 config/server.ts 的 protocol
-  if (moduleType === 'controller' && ['grpc', 'graphql', 'websocket', 'ws'].includes(ctrlType || '')) {
+  if (
+    moduleType === 'controller' &&
+    ['grpc', 'graphql', 'websocket', 'ws'].includes(ctrlType || '')
+  ) {
     const patched = addProtocolToServerConfig(process.cwd(), ctrlType || '');
     if (patched) {
       written.push(path.join(process.cwd(), 'src/config/server.ts'));

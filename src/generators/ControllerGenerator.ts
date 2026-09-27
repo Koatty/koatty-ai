@@ -30,7 +30,11 @@ export class ControllerGenerator extends BaseGenerator {
 
     const outputPath = this.getOutputPath('controller', suffix);
     const content = await this.render(templatePath, this.spec);
-    this.changeset.createFile(outputPath, content, `Generate ${apiType.toUpperCase()} Controller for ${this.spec.module}`);
+    this.changeset.createFile(
+      outputPath,
+      content,
+      `Generate ${apiType.toUpperCase()} Controller for ${this.spec.module}`
+    );
 
     // 当启用认证时，生成 AuthAspect 切面（仅生成一次）
     if (this.spec.auth?.enabled) {

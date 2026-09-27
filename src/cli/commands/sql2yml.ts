@@ -103,7 +103,9 @@ export function registerSql2YmlCommand(program: Command) {
         for (let i = 0; i < tables.length; i++) {
           const t = tables[i];
           const ymlPath = ymlPaths[i];
-          console.log(`  📄 ${t.tableName} -> ${path.relative(process.cwd(), ymlPath)} (模块: ${t.moduleName})`);
+          console.log(
+            `  📄 ${t.tableName} -> ${path.relative(process.cwd(), ymlPath)} (模块: ${t.moduleName})`
+          );
         }
 
         if (options.apply) {
@@ -127,7 +129,9 @@ export function registerSql2YmlCommand(program: Command) {
                   );
                   console.log(`  ✅ ${change.type === 'create' ? '创建' : '修改'} ${change.path}`);
                   if (backupPaths.length > beforeCount) {
-                    console.log(`     📦 备份: ${path.relative(process.cwd(), backupPaths[backupPaths.length - 1])}`);
+                    console.log(
+                      `     📦 备份: ${path.relative(process.cwd(), backupPaths[backupPaths.length - 1])}`
+                    );
                   }
                 } else if (change.type === 'delete') {
                   FileOperator.deleteFile(fullPath);

@@ -1,5 +1,3 @@
-import { ChangeSet } from '../changeset/ChangeSet';
-import { Spec } from '../types/spec';
 import { BaseGenerator } from './BaseGenerator';
 
 /**

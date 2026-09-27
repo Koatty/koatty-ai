@@ -1,5 +1,5 @@
 import { Field } from '../types/spec';
-import { mapSqlType, SqlDialect, SpecFieldType } from './SqlTypeMap';
+import { mapSqlType, SqlDialect } from './SqlTypeMap';
 
 export interface ParsedTable {
   tableName: string;
@@ -30,7 +30,8 @@ export class SqlParser {
     const unknownTypes: UnknownSqlType[] = [];
     const dialect = options?.dialect ?? 'auto';
 
-    const createRegex = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:`?(\w+)`?\.)?`?(\w+)`?\s*\(/gi;
+    const createRegex =
+      /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:`?(\w+)`?\.)?`?(\w+)`?\s*\(/gi;
 
     let match;
     while ((match = createRegex.exec(content)) !== null) {
@@ -67,7 +68,12 @@ export class SqlParser {
     if (lower.endsWith('ies') && lower.length > 3) {
       return lower.slice(0, -3) + 'y'; // categories -> category
     }
-    if (lower.endsWith('ses') || lower.endsWith('xes') || lower.endsWith('zes') || lower.endsWith('ches')) {
+    if (
+      lower.endsWith('ses') ||
+      lower.endsWith('xes') ||
+      lower.endsWith('zes') ||
+      lower.endsWith('ches')
+    ) {
       return lower.slice(0, -2); // addresses -> address, boxes -> box
     }
     if (lower.endsWith('es') && lower.length > 2) {
@@ -96,7 +102,13 @@ export class SqlParser {
     const lines = this.splitColumnDefs(columnsDef);
 
     for (const line of lines) {
-      if (/^\s*PRIMARY\s+KEY\s*\(/i.test(line) || /^\s*KEY\s+/i.test(line) || /^\s*UNIQUE\s+KEY/i.test(line) || /^\s*FOREIGN\s+KEY/i.test(line) || /^\s*CONSTRAINT\s+/i.test(line)) {
+      if (
+        /^\s*PRIMARY\s+KEY\s*\(/i.test(line) ||
+        /^\s*KEY\s+/i.test(line) ||
+        /^\s*UNIQUE\s+KEY/i.test(line) ||
+        /^\s*FOREIGN\s+KEY/i.test(line) ||
+        /^\s*CONSTRAINT\s+/i.test(line)
+      ) {
         continue;
       }
 
@@ -111,7 +123,14 @@ export class SqlParser {
       const sqlType = (colMatch[2] || '').trim();
       const typeArg = colMatch[3]?.trim();
 
-      const { field, unknown } = this.sqlTypeToField(colName, sqlType, typeArg, line, tableName, dialect);
+      const { field, unknown } = this.sqlTypeToField(
+        colName,
+        sqlType,
+        typeArg,
+        line,
+        tableName,
+        dialect
+      );
       if (field) {
         fields[colName] = field;
         if (unknown) {

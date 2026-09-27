@@ -306,7 +306,7 @@ describe('TemplateManager', () => {
 
     it('should throw error for non-existent template', () => {
       const tm = new TemplateManager();
-      expect(() => tm.renderTemplate('/nonexistent/template.hbs', {})).toThrow('模板文件不存在');
+      expect(() => tm.renderTemplate('/nonexistent/template.hbs', {})).toThrow('Template file does not exist');
     });
   });
 
@@ -675,7 +675,7 @@ describe('TemplateManager', () => {
       );
 
       await expect(tm.downloadTemplate('modules', 'github')).rejects.toThrow(
-        '模板下载失败或内容为空'
+        'Template download failed or content is empty'
       );
     });
   });

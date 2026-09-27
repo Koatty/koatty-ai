@@ -1,4 +1,4 @@
-import { Spec, Field, ApiEndpoint, ApiConfig } from '../types/spec';
+import { Spec, Field, ApiEndpoint } from '../types/spec';
 
 export interface OpenAPISpec {
   openapi: string;
@@ -72,9 +72,13 @@ export class OpenAPIGenerator {
 
     openapi.components!.schemas![moduleName] = this.generateSchemaFromFields(this.spec.fields);
 
-    openapi.components!.schemas![`${moduleName}Create`] = this.generateCreateSchema(this.spec.fields);
-    
-    openapi.components!.schemas![`${moduleName}Update`] = this.generateUpdateSchema(this.spec.fields);
+    openapi.components!.schemas![`${moduleName}Create`] = this.generateCreateSchema(
+      this.spec.fields
+    );
+
+    openapi.components!.schemas![`${moduleName}Update`] = this.generateUpdateSchema(
+      this.spec.fields
+    );
 
     if (this.spec.dto?.query || this.spec.features?.pagination) {
       openapi.components!.schemas![`${moduleName}Query`] = this.generateQuerySchema();
@@ -91,9 +95,9 @@ export class OpenAPIGenerator {
 
     for (const [name, field] of Object.entries(fields)) {
       if (field.primary) continue;
-      
+
       properties[name] = this.fieldToOpenAPIProperty(field);
-      
+
       if (field.required && !field.nullable) {
         required.push(name);
       }
@@ -161,9 +165,9 @@ export class OpenAPIGenerator {
 
     for (const [name, field] of Object.entries(fields)) {
       if (field.primary || field.auto) continue;
-      
+
       properties[name] = this.fieldToOpenAPIProperty(field);
-      
+
       if (field.required && !field.nullable) {
         required.push(name);
       }
@@ -181,7 +185,7 @@ export class OpenAPIGenerator {
 
     for (const [name, field] of Object.entries(fields)) {
       if (field.primary) continue;
-      
+
       properties[name] = {
         ...this.fieldToOpenAPIProperty(field),
         nullable: true,
@@ -273,7 +277,6 @@ export class OpenAPIGenerator {
   }
 
   private getDefaultEndpoints(): ApiEndpoint[] {
-    const moduleName = this.spec.module;
     return [
       { method: 'GET', path: '', action: 'list' },
       { method: 'GET', path: '/:id', action: 'get' },

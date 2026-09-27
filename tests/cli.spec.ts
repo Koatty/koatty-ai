@@ -10,7 +10,8 @@ describe('CLI Entry Point', () => {
 
   it('should display version with --version flag', () => {
     const output = execSync(`node ${cliPath} --version`, { encoding: 'utf-8' });
-    expect(output).toContain('4.0.0');
+    const pkgVersion = require('../package.json').version;
+    expect(output).toContain(pkgVersion);
   });
 
   it('should display help with --help flag', () => {

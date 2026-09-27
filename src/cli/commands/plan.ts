@@ -40,11 +40,11 @@ export function registerPlanCommand(program: Command) {
           const openapiSpec = openapiGenerator.generate();
           const outputPath = path.resolve(process.cwd(), options.openapi);
           const outputDir = path.dirname(outputPath);
-          
+
           if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
           }
-          
+
           fs.writeFileSync(outputPath, JSON.stringify(openapiSpec, null, 2), 'utf-8');
           console.log(`OpenAPI 3.1 spec written to: ${outputPath}`);
           return;

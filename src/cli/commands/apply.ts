@@ -19,7 +19,10 @@ export function registerApplyCommand(program: Command) {
   const apply = program
     .command('apply')
     .description('Apply generated changes to the project')
-    .argument('[module-name]', '模块名，将使用 <module>.yml 生成并应用（如 koatty add user 后执行 koatty apply user）')
+    .argument(
+      '[module-name]',
+      '模块名，将使用 <module>.yml 生成并应用（如 koatty add user 后执行 koatty apply user）'
+    )
     .option('--spec <path>', 'Path to YAML specification file')
     .option('--changeset <path>', 'Path to ChangeSet JSON file')
     .option('--no-validate', 'Skip quality checks (prettier, eslint, tsc)')
@@ -29,7 +32,9 @@ export function registerApplyCommand(program: Command) {
       try {
         const specPath = options.spec ?? (moduleName ? `${moduleName.trim()}.yml` : undefined);
         if (!specPath && !options.changeset) {
-          spinner.fail('请指定模块名（如 koatty apply user）或使用 --spec <path> / --changeset <path>');
+          spinner.fail(
+            '请指定模块名（如 koatty apply user）或使用 --spec <path> / --changeset <path>'
+          );
           process.exit(1);
         }
 
@@ -51,7 +56,9 @@ export function registerApplyCommand(program: Command) {
         else if (specPath) {
           const resolvedSpecPath = path.resolve(process.cwd(), specPath);
           if (!fs.existsSync(resolvedSpecPath)) {
-            spinner.fail(`YAML 文件不存在: ${specPath}，请先执行 koatty add ${moduleName?.trim() || 'name'}`);
+            spinner.fail(
+              `YAML 文件不存在: ${specPath}，请先执行 koatty add ${moduleName?.trim() || 'name'}`
+            );
             process.exit(1);
           }
           spinner.text = `Applying changes for: ${specPath}`;
@@ -69,7 +76,9 @@ export function registerApplyCommand(program: Command) {
             }
           }
         } else {
-          spinner.fail('请指定模块名（如 koatty apply user）或使用 --spec <path> / --changeset <path>');
+          spinner.fail(
+            '请指定模块名（如 koatty apply user）或使用 --spec <path> / --changeset <path>'
+          );
           process.exit(1);
         }
 
@@ -93,10 +102,14 @@ export function registerApplyCommand(program: Command) {
 
           if (change.type === 'create' || change.type === 'modify') {
             const beforeCount = backupPaths.length;
-            FileOperator.writeFile(fullPath, change.content || '', true, (bp) => backupPaths.push(bp));
+            FileOperator.writeFile(fullPath, change.content || '', true, (bp) =>
+              backupPaths.push(bp)
+            );
             console.log(`  ✅ ${change.type === 'create' ? 'Created' : 'Modified'} ${change.path}`);
             if (backupPaths.length > beforeCount) {
-              console.log(`     📦 备份: ${path.relative(process.cwd(), backupPaths[backupPaths.length - 1])}`);
+              console.log(
+                `     📦 备份: ${path.relative(process.cwd(), backupPaths[backupPaths.length - 1])}`
+              );
             }
             appliedCount++;
             appliedFiles.push(fullPath);

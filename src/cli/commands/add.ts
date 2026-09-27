@@ -132,10 +132,14 @@ export function registerAddCommand(program: Command) {
             const fullPath = path.join(cwd, change.path);
             if (change.type === 'create' || change.type === 'modify') {
               const beforeCount = backupPaths.length;
-              FileOperator.writeFile(fullPath, change.content || '', true, (bp) => backupPaths.push(bp));
+              FileOperator.writeFile(fullPath, change.content || '', true, (bp) =>
+                backupPaths.push(bp)
+              );
               console.log(`  ✅ ${change.type === 'create' ? '创建' : '修改'} ${change.path}`);
               if (backupPaths.length > beforeCount) {
-                console.log(`     📦 备份: ${path.relative(cwd, backupPaths[backupPaths.length - 1])}`);
+                console.log(
+                  `     📦 备份: ${path.relative(cwd, backupPaths[backupPaths.length - 1])}`
+                );
               }
               appliedPaths.push(fullPath);
             } else if (change.type === 'delete') {

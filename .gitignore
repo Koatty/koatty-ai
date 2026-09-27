@@ -6,6 +6,12 @@ package-lock.json
 dist/
 *.tsbuildinfo
 
+# In-place compilation artifacts (QA-03): src/ only holds TypeScript sources
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts
+src/**/*.d.ts.map
+
 # Test coverage
 coverage/
 *.lcov

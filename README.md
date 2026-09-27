@@ -689,7 +689,7 @@ Koatty CLI 确保生成的代码：
 
 ## 📚 示例
 
-更多示例请参考 `examples/` 目录。
+更多示例请参考 `packages/koatty/examples/` 目录。
 
 ## 🤝 贡献
 

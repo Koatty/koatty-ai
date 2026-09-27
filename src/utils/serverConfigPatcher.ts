@@ -16,10 +16,7 @@ const PROTOCOL_MAP: Record<string, string> = {
  * 在 config/server.ts 的 protocol 中增加指定协议
  * 仅 grpc、graphql、websocket(ws) 需要处理
  */
-export function addProtocolToServerConfig(
-  cwd: string,
-  protocolType: string
-): boolean {
+export function addProtocolToServerConfig(cwd: string, protocolType: string): boolean {
   const normalized = PROTOCOL_MAP[protocolType?.toLowerCase()] ?? protocolType?.toLowerCase();
   if (!['grpc', 'graphql', 'ws'].includes(normalized)) {
     return false;
@@ -63,7 +60,10 @@ export function addProtocolToServerConfig(
     newProtocol = `[${protocols.map((p) => `"${p}"`).join(', ')}]`;
   }
 
-  content = content.replace(/protocol:\s*(\[[\s\S]*?\]|["'][^"']*["'])/, `protocol: ${newProtocol}`);
+  content = content.replace(
+    /protocol:\s*(\[[\s\S]*?\]|["'][^"']*["'])/,
+    `protocol: ${newProtocol}`
+  );
   fs.writeFileSync(serverPath, content, 'utf-8');
   return true;
 }

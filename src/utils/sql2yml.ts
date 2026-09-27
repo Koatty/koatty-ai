@@ -48,7 +48,15 @@ export interface Sql2YmlOptions {
   typeOverrides?: Record<string, SpecFieldType>;
 }
 
-const VALID_SPEC_TYPES: SpecFieldType[] = ['string', 'number', 'boolean', 'enum', 'datetime', 'text', 'json'];
+const VALID_SPEC_TYPES: SpecFieldType[] = [
+  'string',
+  'number',
+  'boolean',
+  'enum',
+  'datetime',
+  'text',
+  'json',
+];
 
 /**
  * 将 CREATE TABLE SQL 转为模块 YAML 并输出

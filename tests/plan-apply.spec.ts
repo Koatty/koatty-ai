@@ -24,9 +24,8 @@ describe('Apply Command', () => {
     try {
       execSync(`node ${cliPath} apply`, { encoding: 'utf-8', stdio: 'pipe' });
     } catch (e: any) {
-      expect(e.stdout.toString() || e.stderr.toString()).toContain(
-        'Either --spec <path> or --changeset <path> is required'
-      );
+      const combined = `${e.stdout}${e.stderr}`;
+      expect(combined).toContain('请指定模块名');
     }
   });
 
