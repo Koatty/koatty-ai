@@ -2,12 +2,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as https from 'https';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { TemplateManager, TemplateType, MirrorSource } from '../src/services/TemplateManager';
 
-// Mock child_process.exec
+// Mock child_process.exec / execFile (SEC-10: TemplateManager now uses execFile)
 jest.mock('child_process', () => ({
   exec: jest.fn(),
+  execFile: jest.fn(),
 }));
 
 // Mock https
@@ -501,7 +502,7 @@ describe('TemplateManager', () => {
   });
 
   describe('downloadTemplate', () => {
-    const mockExec = exec as unknown as jest.Mock;
+    const mockExec = execFile as unknown as jest.Mock;
     const mockHttpsGet = https.get as jest.Mock;
 
     beforeEach(() => {
@@ -522,7 +523,8 @@ describe('TemplateManager', () => {
       // Mock successful git clone
       mockExec.mockImplementation(
         (
-          _cmd: string,
+          _file: string,
+          _args: string[],
           callback: (err: Error | null, result: { stdout: string; stderr: string }) => void
         ) => {
           // Create the target directory to simulate successful clone
@@ -536,7 +538,8 @@ describe('TemplateManager', () => {
       await tm.downloadTemplate('modules', 'github');
 
       expect(mockExec).toHaveBeenCalledWith(
-        expect.stringContaining('github.com/koatty/koatty-ai-template-modules'),
+        'git',
+        expect.arrayContaining([expect.stringContaining('github.com/koatty/koatty-ai-template-modules')]),
         expect.any(Function)
       );
     });
@@ -547,7 +550,8 @@ describe('TemplateManager', () => {
 
       mockExec.mockImplementation(
         (
-          _cmd: string,
+          _file: string,
+          _args: string[],
           callback: (err: Error | null, result: { stdout: string; stderr: string }) => void
         ) => {
           const targetDir = path.join(cacheDir, 'modules');
@@ -560,7 +564,8 @@ describe('TemplateManager', () => {
       await tm.downloadTemplate('modules', 'gitee');
 
       expect(mockExec).toHaveBeenCalledWith(
-        expect.stringContaining('gitee.com/koatty/koatty-ai-template-modules'),
+        'git',
+        expect.arrayContaining([expect.stringContaining('gitee.com/koatty/koatty-ai-template-modules')]),
         expect.any(Function)
       );
     });
@@ -572,9 +577,11 @@ describe('TemplateManager', () => {
       let callCount = 0;
       mockExec.mockImplementation(
         (
-          cmd: string,
+          _file: string,
+          args: string[],
           callback: (err: Error | null, result?: { stdout: string; stderr: string }) => void
         ) => {
+          const cmd = args.join(' ');
           callCount++;
           if (callCount === 1 && cmd.includes('github')) {
             callback(new Error('GitHub connection failed'));
@@ -591,7 +598,8 @@ describe('TemplateManager', () => {
 
       expect(mockExec).toHaveBeenCalledTimes(2);
       expect(mockExec).toHaveBeenLastCalledWith(
-        expect.stringContaining('gitee.com'),
+        'git',
+        expect.arrayContaining([expect.stringContaining('gitee.com')]),
         expect.any(Function)
       );
     });
@@ -602,7 +610,8 @@ describe('TemplateManager', () => {
 
       mockExec.mockImplementation(
         (
-          _cmd: string,
+          _file: string,
+          _args: string[],
           callback: (err: Error | null, result: { stdout: string; stderr: string }) => void
         ) => {
           const targetDir = path.join(cacheDir, 'modules');
@@ -622,7 +631,7 @@ describe('TemplateManager', () => {
       const cacheDir = path.join(tempDir, 'download-cache5');
       const tm = new TemplateManager({ cacheDir });
 
-      mockExec.mockImplementation((_cmd: string, callback: (err: Error | null) => void) => {
+      mockExec.mockImplementation((_file: string, _args: string[], callback: (err: Error | null) => void) => {
         callback(new Error('Clone failed'));
       });
 
@@ -640,7 +649,8 @@ describe('TemplateManager', () => {
 
       mockExec.mockImplementation(
         (
-          _cmd: string,
+          _file: string,
+          _args: string[],
           callback: (err: Error | null, result: { stdout: string; stderr: string }) => void
         ) => {
           // Simulate git clone creating new files
@@ -664,7 +674,8 @@ describe('TemplateManager', () => {
 
       mockExec.mockImplementation(
         (
-          _cmd: string,
+          _file: string,
+          _args: string[],
           callback: (err: Error | null, result: { stdout: string; stderr: string }) => void
         ) => {
           // Create target directory but leave it empty
@@ -681,7 +692,7 @@ describe('TemplateManager', () => {
   });
 
   describe('getTemplatePath with fallback', () => {
-    const mockExec = exec as unknown as jest.Mock;
+    const mockExec = execFile as unknown as jest.Mock;
     const mockHttpsGet = https.get as jest.Mock;
 
     beforeEach(() => {
@@ -730,7 +741,8 @@ describe('TemplateManager', () => {
 
       mockExec.mockImplementation(
         (
-          _cmd: string,
+          _file: string,
+          _args: string[],
           callback: (err: Error | null, result: { stdout: string; stderr: string }) => void
         ) => {
           const targetDir = path.join(cacheDir, 'modules');
@@ -752,7 +764,7 @@ describe('TemplateManager', () => {
   });
 
   describe('ensureTemplateRepo', () => {
-    const mockExec = exec as unknown as jest.Mock;
+    const mockExec = execFile as unknown as jest.Mock;
     const mockHttpsGet = https.get as jest.Mock;
 
     beforeEach(() => {
@@ -786,7 +798,8 @@ describe('TemplateManager', () => {
 
       mockExec.mockImplementation(
         (
-          _cmd: string,
+          _file: string,
+          _args: string[],
           callback: (err: Error | null, result: { stdout: string; stderr: string }) => void
         ) => {
           const targetDir = path.join(cacheDir, 'modules');
@@ -808,7 +821,8 @@ describe('TemplateManager', () => {
 
       mockExec.mockImplementation(
         (
-          _cmd: string,
+          _file: string,
+          _args: string[],
           callback: (err: Error | null, result: { stdout: string; stderr: string }) => void
         ) => {
           const targetDir = path.join(cacheDir, 'modules');
@@ -822,14 +836,15 @@ describe('TemplateManager', () => {
       await tm.ensureTemplateRepo('modules', { force: true, mirror: 'gitee' });
 
       expect(mockExec).toHaveBeenCalledWith(
-        expect.stringContaining('gitee.com'),
+        'git',
+        expect.arrayContaining([expect.stringContaining('gitee.com')]),
         expect.any(Function)
       );
     });
   });
 
   describe('updateTemplates', () => {
-    const mockExec = exec as unknown as jest.Mock;
+    const mockExec = execFile as unknown as jest.Mock;
     const mockHttpsGet = https.get as jest.Mock;
 
     beforeEach(() => {
@@ -847,11 +862,12 @@ describe('TemplateManager', () => {
 
       mockExec.mockImplementation(
         (
-          cmd: string,
+          _file: string,
+          args: string[],
           callback: (err: Error | null, result: { stdout: string; stderr: string }) => void
         ) => {
-          // Extract type from command
-          const typeMatch = cmd.match(/koatty-ai-template-(\w+)/);
+          // Extract type from the clone URL argument
+          const typeMatch = args.join(' ').match(/koatty-ai-template-(\w+)/);
           const type = typeMatch ? typeMatch[1] : 'modules';
           const targetDir = path.join(cacheDir, type);
           fs.mkdirSync(targetDir, { recursive: true });

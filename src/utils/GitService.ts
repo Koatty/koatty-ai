@@ -1,4 +1,4 @@
-import { simpleGit, SimpleGit, CleanOptions } from 'simple-git';
+import { simpleGit, SimpleGit } from 'simple-git';
 
 /**
  * GitService handles Git operations for the project.
@@ -7,7 +7,9 @@ export class GitService {
   private git: SimpleGit;
 
   constructor(private workingDir: string = process.cwd()) {
-    this.git = simpleGit(workingDir).clean(CleanOptions.FORCE);
+    // SEC-10: never queue destructive commands (git clean -f) implicitly;
+    // callers must invoke cleanup explicitly if they really need it
+    this.git = simpleGit(workingDir);
   }
 
   /**

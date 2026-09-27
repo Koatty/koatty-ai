@@ -2,11 +2,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as https from 'https';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as Handlebars from 'handlebars';
 
-const execAsync = promisify(exec);
+// SEC-10: argument-array execution, never through a shell
+const execFileAsync = promisify(execFile);
 
 /**
  * 模板类型
@@ -295,13 +296,13 @@ export class TemplateManager {
 
     // 异步克隆仓库
     try {
-      await execAsync(`git clone --depth 1 ${repoUrl} ${targetDir}`);
+      await execFileAsync('git', ['clone', '--depth', '1', repoUrl, targetDir]);
     } catch {
       // 降级到另一个镜像
       const fallbackSource: MirrorSource = source === 'github' ? 'gitee' : 'github';
       const fallbackUrl = TemplateManager.TEMPLATE_REPOS[type][fallbackSource];
       onProgress?.(`${source} 连接失败，降级到 ${fallbackSource}...`);
-      await execAsync(`git clone --depth 1 ${fallbackUrl} ${targetDir}`);
+      await execFileAsync('git', ['clone', '--depth', '1', fallbackUrl, targetDir]);
     }
 
     // Validate template integrity

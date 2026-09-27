@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -26,7 +26,8 @@ export class QualityService {
    */
   static formatFile(filePath: string): void {
     try {
-      execSync(`npx prettier --write "${filePath}"`, { stdio: 'pipe' });
+      // SEC-10: argument-array execution, never through a shell
+      execFileSync('npx', ['prettier', '--write', filePath], { stdio: 'pipe' });
     } catch (error) {
       console.warn(`⚠️ Formatting failed for ${filePath}: ${(error as any).message}`);
     }
@@ -37,7 +38,7 @@ export class QualityService {
    */
   static lintFile(filePath: string): { success: boolean; output: string } {
     try {
-      const output = execSync(`npx eslint "${filePath}" --fix`, {
+      const output = execFileSync('npx', ['eslint', filePath, '--fix'], {
         encoding: 'utf-8',
         stdio: 'pipe',
       });

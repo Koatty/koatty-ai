@@ -4,6 +4,7 @@ import { ChangeSet } from '../../changeset/ChangeSet';
 import { FileOperator } from '../../utils/FileOperator';
 import { QualityService } from '../../utils/QualityService';
 import { ensureBackupInGitignore } from '../../utils/gitignore';
+import { resolveInside } from '../../utils/sandbox';
 import * as path from 'path';
 import * as fs from 'fs';
 import ora from 'ora';
@@ -13,6 +14,7 @@ interface ApplyCommandOptions {
   changeset?: string;
   validate?: boolean;
   commit?: boolean;
+  yes?: boolean;
 }
 
 export function registerApplyCommand(program: Command) {
@@ -27,6 +29,11 @@ export function registerApplyCommand(program: Command) {
     .option('--changeset <path>', 'Path to ChangeSet JSON file')
     .option('--no-validate', 'Skip quality checks (prettier, eslint, tsc)')
     .option('--commit', 'Auto commit changes to git', false)
+    .option(
+      '--yes',
+      'Actually write the changes (default is a dry-run preview, SEC-10)',
+      false
+    )
     .action(async (moduleName: string | undefined, options: ApplyCommandOptions) => {
       const spinner = ora('Applying changes').start();
       try {
@@ -91,14 +98,30 @@ export function registerApplyCommand(program: Command) {
           }
         }
 
+        // SEC-10: every write is sandboxed to the project root and the
+        // default mode is a dry-run preview; --yes performs the actual write
+        const changes = changeset.getChanges();
+        for (const change of changes) {
+          resolveInside(process.cwd(), change.path);
+        }
+
+        if (!options.yes) {
+          spinner.stop();
+          console.log('\n📋 Dry-run preview (no files written). Re-run with --yes to apply:\n');
+          for (const change of changes) {
+            const icon = change.type === 'create' ? '🟢' : change.type === 'modify' ? '🟡' : '🔴';
+            console.log(`  ${icon} [${change.type}] ${change.path}`);
+          }
+          console.log(`\n  ${changes.length} change(s) planned for module "${resolvedModuleName}".`);
+          return;
+        }
+
         // Execute all changes（modify 时先备份原文件）
         let appliedCount = 0;
         const appliedFiles: string[] = [];
         const backupPaths: string[] = [];
-        for (const change of changeset.getChanges()) {
-          const fullPath = path.isAbsolute(change.path)
-            ? change.path
-            : path.join(process.cwd(), change.path);
+        for (const change of changes) {
+          const fullPath = resolveInside(process.cwd(), change.path);
 
           if (change.type === 'create' || change.type === 'modify') {
             const beforeCount = backupPaths.length;
