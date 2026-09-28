@@ -68,15 +68,22 @@ export class ChangeSet {
   }
 
   /**
-   * Save ChangeSet to a file
+   * Save ChangeSet to a file.
+   *
+   * COR-16: `target` may be a directory (the changeset id is appended) or a
+   * full `*.json` file path. CLI callers pass a file path, which previously was
+   * created *as a directory* and made `koatty apply --changeset <id>` fail with
+   * EISDIR.
    */
-  public save(targetDir: string): string {
+  public save(target: string): string {
     const fs = require('fs'); // eslint-disable-line @typescript-eslint/no-require-imports
     const path = require('path'); // eslint-disable-line @typescript-eslint/no-require-imports
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
+    const isFileTarget = /\.json$/i.test(target);
+    const dir = isFileTarget ? path.dirname(target) : target;
+    if (dir && !fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
-    const filePath = path.join(targetDir, `${this.id}.json`);
+    const filePath = isFileTarget ? target : path.join(dir, `${this.id}.json`);
     fs.writeFileSync(filePath, JSON.stringify(this.toJSON(), null, 2));
     return filePath;
   }

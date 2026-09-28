@@ -50,7 +50,7 @@ describe('AB-01/02: all CLI writes stay inside the project', () => {
     expect(fs.readFileSync(backup, 'utf8')).toBe('original');
   });
   test('backup target cannot follow an external symlink', () => {
-    jest.useFakeTimers().setSystemTime(new Date(2026, 8, 28, 12, 34, 56));
+    jest.useFakeTimers().setSystemTime(new Date(2026, 8, 28, 12, 34, 56).getTime());
     try {
       const target = path.join(root, 'a.ts'), external = path.join(outside, 'backup');
       fs.writeFileSync(target, 'original'); fs.writeFileSync(external, 'untouched');

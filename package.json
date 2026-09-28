@@ -1,6 +1,6 @@
 {
   "name": "koatty_cli",
-  "version": "4.2.2",
+  "version": "5.0.0",
   "description": "Koatty CLI - Intelligent scaffolding tool for Koatty framework (replacement for koatty_cli)",
   "main": "dist/index.js",
   "bin": {
@@ -42,6 +42,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
     "chalk": "^4.1.2",
     "commander": "^14.0.2",
     "handlebars": "^4.7.8",

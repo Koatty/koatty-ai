@@ -5,6 +5,7 @@ import { DtoGenerator } from './DtoGenerator';
 import { ServiceGenerator } from './ServiceGenerator';
 import { ControllerGenerator } from './ControllerGenerator';
 import { ProtoGenerator } from './ProtoGenerator';
+import { TestGenerator } from './TestGenerator';
 
 /**
  * Module Generator - Orchestrates all specific generators for a module
@@ -15,6 +16,7 @@ import { ProtoGenerator } from './ProtoGenerator';
  *   src/model/{Module}Model.ts (entity)
  *   src/dto/{Module}Dto.ts
  *   src/resource/proto/{Module}.proto (仅 gRPC)
+ *   test/{module}.test.ts (Phase E, E-4)
  *
  * Koatty 框架通过 IoC 容器自动扫描加载，无需 barrel index.ts
  */
@@ -33,6 +35,8 @@ export class ModuleGenerator {
       new DtoGenerator(this.spec, this.changeset),
       new ServiceGenerator(this.spec, this.changeset),
       new ControllerGenerator(this.spec, this.changeset),
+      // E-4: every generated module also ships a runnable test skeleton.
+      new TestGenerator(this.spec, this.changeset),
     ];
 
     if (this.spec.api?.type === 'grpc') {
