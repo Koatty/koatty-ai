@@ -1,48 +1,47 @@
-/**
- * @Description: Filesystem sandbox for CLI write operations (SEC-10 / B-10)
- * @License: BSD (3-Clause)
- */
 import * as path from 'path';
 import * as fs from 'fs';
 
-/**
- * Resolve `target` against `root` and refuse anything that escapes the
- * project root — including via symlinks.
- *
- * @param root absolute project root (the sandbox boundary)
- * @param target user- or AI-supplied path, absolute or relative
- * @returns the absolute resolved path (guaranteed inside `root`)
- * @throws Error when the path escapes the root, directly or through a symlink
- */
+/** Resolve a write target. Symlinks below the project root, including dangling
+ * links, are rejected. A symlink used to name the root itself is supported.
+ * Unknown filesystem errors fail closed. */
 export function resolveInside(root: string, target: string): string {
+  root = path.resolve(root);
   const abs = path.resolve(root, target);
   const rel = path.relative(root, abs);
-  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+  if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
     throw new Error(`Path escapes project root: ${target}`);
   }
-
-  // symlink escape check: resolve the real path of the deepest existing
-  // ancestor and make sure it still lands inside the (real) root
-  try {
-    const realRoot = fs.realpathSync.native(root);
-    let probe = abs;
-    while (probe !== path.dirname(probe) && !fs.existsSync(probe)) {
-      probe = path.dirname(probe);
-    }
-    if (fs.existsSync(probe)) {
-      const realProbe = fs.realpathSync.native(probe);
-      const real = realProbe + abs.slice(probe.length);
-      const relReal = path.relative(realRoot, real);
-      if (relReal.startsWith('..') || path.isAbsolute(relReal)) {
-        throw new Error(`Path escapes project root (symlink): ${target}`);
+  const realRoot = fs.realpathSync.native(root);
+  let probe = realRoot;
+  for (const part of rel.split(path.sep).filter(Boolean)) {
+    probe = path.join(probe, part);
+    try {
+      if (fs.lstatSync(probe).isSymbolicLink()) {
+        throw new Error(`Path escapes project root (symlink writes are forbidden): ${target}`);
       }
-    }
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith('Path escapes project root')) {
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') break;
       throw err;
     }
-    // root may not exist yet (fresh project); path checks above still apply
   }
-
   return abs;
+}
+
+/** Recheck at the write boundary and never follow a leaf symlink. */
+export function writeInside(root: string, target: string, content: string): void {
+  const abs = resolveInside(root, target);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  resolveInside(root, abs);
+  const fd = fs.openSync(
+    abs,
+    fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_NOFOLLOW,
+    0o644
+  );
+  try {
+    if (!fs.fstatSync(fd).isFile()) throw new Error(`Not a regular file: ${target}`);
+    fs.ftruncateSync(fd, 0);
+    fs.writeFileSync(fd, content, 'utf8');
+  } finally {
+    fs.closeSync(fd);
+  }
 }

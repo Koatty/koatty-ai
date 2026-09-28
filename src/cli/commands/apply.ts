@@ -117,6 +117,10 @@ export function registerApplyCommand(program: Command) {
           return;
         }
 
+        // Preflight auxiliary writes before applying any changes.
+        resolveInside(process.cwd(), '.gitignore');
+        if (protocolPatchType) resolveInside(process.cwd(), 'src/config/server.ts');
+
         // Execute all changes（modify 时先备份原文件）
         let appliedCount = 0;
         const appliedFiles: string[] = [];
@@ -126,8 +130,12 @@ export function registerApplyCommand(program: Command) {
 
           if (change.type === 'create' || change.type === 'modify') {
             const beforeCount = backupPaths.length;
-            FileOperator.writeFile(fullPath, change.content || '', true, (bp) =>
-              backupPaths.push(bp)
+            FileOperator.writeFile(
+              fullPath,
+              change.content || '',
+              true,
+              (bp) => backupPaths.push(bp),
+              process.cwd()
             );
             console.log(`  ✅ ${change.type === 'create' ? 'Created' : 'Modified'} ${change.path}`);
             if (backupPaths.length > beforeCount) {
@@ -138,7 +146,7 @@ export function registerApplyCommand(program: Command) {
             appliedCount++;
             appliedFiles.push(fullPath);
           } else if (change.type === 'delete') {
-            FileOperator.deleteFile(fullPath);
+            FileOperator.deleteFile(fullPath, process.cwd());
             console.log(`  🗑️  Deleted ${change.path}`);
             appliedCount++;
           }

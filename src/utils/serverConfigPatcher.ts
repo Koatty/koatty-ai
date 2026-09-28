@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { resolveInside, writeInside } from './sandbox';
 
 /** 需要特殊配置的协议类型 */
 export const PROTOCOL_TYPES = ['grpc', 'graphql', 'websocket', 'ws'] as const;
@@ -22,7 +23,7 @@ export function addProtocolToServerConfig(cwd: string, protocolType: string): bo
     return false;
   }
 
-  const serverPath = path.join(cwd, 'src/config/server.ts');
+  const serverPath = resolveInside(cwd, path.join(cwd, 'src/config/server.ts'));
   if (!fs.existsSync(serverPath)) {
     return false;
   }
@@ -64,6 +65,6 @@ export function addProtocolToServerConfig(cwd: string, protocolType: string): bo
     /protocol:\s*(\[[\s\S]*?\]|["'][^"']*["'])/,
     `protocol: ${newProtocol}`
   );
-  fs.writeFileSync(serverPath, content, 'utf-8');
+  writeInside(cwd, serverPath, content);
   return true;
 }

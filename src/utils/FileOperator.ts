@@ -1,5 +1,20 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { resolveInside, writeInside } from './sandbox';
+
+function existingParent(filePath: string): string {
+  let parent = path.dirname(path.resolve(filePath));
+  while (true) {
+    try {
+      if (fs.lstatSync(parent).isSymbolicLink())
+        throw new Error('Symlink write directory is forbidden');
+      return parent;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      parent = path.dirname(parent);
+    }
+  }
+}
 
 /**
  * 生成时间戳备份后缀（HHMMSS 6 位）
@@ -24,8 +39,11 @@ export class FileOperator {
     filePath: string,
     content: string,
     backup: boolean = true,
-    onBackup?: (backupPath: string) => void
+    onBackup?: (backupPath: string) => void,
+    projectRoot?: string
   ): void {
+    projectRoot ??= existingParent(filePath);
+    filePath = resolveInside(projectRoot, filePath);
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -33,19 +51,21 @@ export class FileOperator {
 
     if (backup && fs.existsSync(filePath)) {
       const ext = path.extname(filePath);
-      const base = filePath.slice(0, -ext.length);
-      const backupPath = `${base}.bak.${backupTimestamp()}${ext}`;
-      fs.copyFileSync(filePath, backupPath);
+      const base = ext ? filePath.slice(0, -ext.length) : filePath;
+      const backupPath = resolveInside(projectRoot, `${base}.bak.${backupTimestamp()}${ext}`);
+      fs.copyFileSync(filePath, backupPath, fs.constants.COPYFILE_EXCL);
       onBackup?.(backupPath);
     }
 
-    fs.writeFileSync(filePath, content, 'utf-8');
+    writeInside(projectRoot, filePath, content);
   }
 
   /**
    * Delete a file if it exists.
    */
-  static deleteFile(filePath: string): void {
+  static deleteFile(filePath: string, projectRoot?: string): void {
+    projectRoot ??= existingParent(filePath);
+    filePath = resolveInside(projectRoot, filePath);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
