@@ -29,11 +29,7 @@ export function registerApplyCommand(program: Command) {
     .option('--changeset <path>', 'Path to ChangeSet JSON file')
     .option('--no-validate', 'Skip quality checks (prettier, eslint, tsc)')
     .option('--commit', 'Auto commit changes to git', false)
-    .option(
-      '--yes',
-      'Actually write the changes (default is a dry-run preview, SEC-10)',
-      false
-    )
+    .option('--yes', 'Actually write the changes (default is a dry-run preview, SEC-10)', false)
     .action(async (moduleName: string | undefined, options: ApplyCommandOptions) => {
       const spinner = ora('Applying changes').start();
       try {
@@ -47,6 +43,9 @@ export function registerApplyCommand(program: Command) {
 
         let changeset: ChangeSet;
         let resolvedModuleName: string;
+        // SEC-10: config/server.ts is patched only in the write phase, inside the
+        // project-root sandbox (never during a dry-run preview).
+        let protocolPatchType: string | undefined;
 
         // Mode 1: Apply from ChangeSet JSON file
         if (options.changeset) {
@@ -77,10 +76,7 @@ export function registerApplyCommand(program: Command) {
           // grpc/graphql: 更新 config/server.ts 的 protocol
           const apiType = pipeline.getSpec().api?.type;
           if (apiType === 'grpc' || apiType === 'graphql') {
-            const { addProtocolToServerConfig } = await import('../../utils/serverConfigPatcher');
-            if (addProtocolToServerConfig(process.cwd(), apiType)) {
-              console.log('  📄 已更新 src/config/server.ts，已添加 protocol');
-            }
+            protocolPatchType = apiType;
           }
         } else {
           spinner.fail(
@@ -112,7 +108,12 @@ export function registerApplyCommand(program: Command) {
             const icon = change.type === 'create' ? '🟢' : change.type === 'modify' ? '🟡' : '🔴';
             console.log(`  ${icon} [${change.type}] ${change.path}`);
           }
-          console.log(`\n  ${changes.length} change(s) planned for module "${resolvedModuleName}".`);
+          console.log(
+            `\n  ${changes.length} change(s) planned for module "${resolvedModuleName}".`
+          );
+          if (protocolPatchType) {
+            console.log(`  🟡 [modify] src/config/server.ts (add protocol "${protocolPatchType}")`);
+          }
           return;
         }
 
@@ -145,6 +146,16 @@ export function registerApplyCommand(program: Command) {
 
         if (backupPaths.length > 0) {
           ensureBackupInGitignore(process.cwd());
+        }
+
+        // SEC-10: protocol patching is part of the write phase only, and the
+        // target is validated against the project root before any write.
+        if (protocolPatchType) {
+          resolveInside(process.cwd(), 'src/config/server.ts');
+          const { addProtocolToServerConfig } = await import('../../utils/serverConfigPatcher');
+          if (addProtocolToServerConfig(process.cwd(), protocolPatchType)) {
+            console.log('  📄 已更新 src/config/server.ts，已添加 protocol');
+          }
         }
 
         // Quality checks (if requested)
