@@ -16,6 +16,18 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { resolveInside } from '../utils/sandbox';
+import { ts, Node } from 'ts-morph';
+import {
+  checkManifest,
+  configDeclaration,
+  dtoSchemas,
+  JsonSchema,
+  literal,
+  Unresolved,
+  unresolved,
+} from './schema';
+export { manifestSchema } from './schema';
 import { collectRuntimeManifest, RuntimeManifest } from './runtime';
 import {
   Project,
@@ -26,7 +38,7 @@ import {
 } from 'ts-morph';
 
 /** Decorator flavour detected from the project tsconfig. */
-export type DecoratorMode = 'legacy' | 'tc39';
+export type DecoratorMode = 'legacy' | 'tc39' | 'unknown';
 
 export interface ManifestComponent {
   id: string;
@@ -62,6 +74,7 @@ export interface ManifestDtoField {
 export interface ManifestDto {
   file: string;
   fields: Record<string, ManifestDtoField>;
+  schema: JsonSchema;
 }
 
 export interface ManifestAspect {
@@ -71,6 +84,9 @@ export interface ManifestAspect {
 }
 
 export interface KoattyManifest {
+  schemaVersion: 1;
+  collectionMode: 'static';
+  unresolved: Unresolved[];
   runtime?: RuntimeManifest;
   koatty: string;
   decoratorMode: DecoratorMode;
@@ -79,7 +95,7 @@ export interface KoattyManifest {
   routes: ManifestRoute[];
   dtos: Record<string, ManifestDto>;
   aspects: ManifestAspect[];
-  config: { keys: string[] };
+  config: { keys: string[]; schema: JsonSchema; schemaSource: 'declaration' | 'inferred' };
   security: { profile?: string };
 }
 
@@ -115,6 +131,12 @@ const ROUTE_DECORATORS: Record<string, string | null> = {
 };
 
 const PARAM_DECORATORS = new Set([
+  'RequestBody',
+  'PathVariable',
+  'Get',
+  'Post',
+  'RequestHeader',
+  'RequestParam',
   'Body',
   'Query',
   'Param',
@@ -140,6 +162,9 @@ const CLASS_COMPONENT_DECORATORS: Record<string, ManifestComponent['type']> = {
   Middleware: 'MIDDLEWARE',
   Plugin: 'PLUGIN',
   Aspect: 'ASPECT',
+  GrpcController: 'CONTROLLER',
+  WebSocketController: 'CONTROLLER',
+  GraphQLController: 'CONTROLLER',
 };
 
 /** Safely read a JSON file, returning undefined on any failure. */
@@ -165,27 +190,10 @@ function firstStringArg(dec: Decorator): string | undefined {
     return (args[0] as any).getLiteralText?.() ?? args[0].getText().replace(/['"`]/g, '');
   }
   if (kind === SyntaxKind.ArrayLiteralExpression) {
-    const first = (args[0] as any).getElements?.()[0];
-    return first?._getLiteralText?.() ?? first?.getText().replace(/['"`]/g, '');
+    const values = literal(args[0]);
+    return Array.isArray(values) && typeof values[0] === 'string' ? values[0] : undefined;
   }
   return undefined;
-}
-
-function literalKeys(node: ObjectLiteralExpression, depth = 0): string[] {
-  if (depth > 3) return [];
-  const keys: string[] = [];
-  for (const prop of node.getProperties()) {
-    if (prop.getKind() !== SyntaxKind.PropertyAssignment) continue;
-    const name = prop.asKindOrThrow(SyntaxKind.PropertyAssignment).getName().replace(/['"`]/g, '');
-    keys.push(name);
-    const initializer = prop.asKindOrThrow(SyntaxKind.PropertyAssignment).getInitializer();
-    if (initializer && initializer.getKind() === SyntaxKind.ObjectLiteralExpression) {
-      for (const nested of literalKeys(initializer as ObjectLiteralExpression, depth + 1)) {
-        keys.push(`${name}.${nested}`);
-      }
-    }
-  }
-  return keys;
 }
 
 /** Read `scope` / `middleware` etc. from a decorator's options object. */
@@ -213,7 +221,8 @@ function joinPath(base: string, sub: string): string {
 export function collectManifest(rootPath: string, options: CollectOptions = {}): KoattyManifest {
   const root = path.resolve(rootPath);
   const tsconfigPath = path.join(root, 'tsconfig.json');
-  const tsconfig = readJson(tsconfigPath);
+  const pending: Unresolved[] = [];
+  const tsconfig = readTsConfig(root, tsconfigPath, pending);
   const sourceRoots = options.sourceRoots ?? ['src', 'app'];
   const project = new Project({
     skipAddingFilesFromTsConfig: true,
@@ -222,13 +231,23 @@ export function collectManifest(rootPath: string, options: CollectOptions = {}):
 
   const patterns: string[] = [];
   for (const dir of sourceRoots) {
-    const abs = path.join(root, dir);
+    const abs = resolveInside(root, dir);
     if (fs.existsSync(abs)) {
       patterns.push(path.join(abs, '**/*.ts').replace(/\\/g, '/'));
     }
   }
   if (patterns.length) {
-    project.addSourceFilesAtPaths(patterns);
+    // Validate every source path before ts-morph reads it (including directory links).
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(resolveInside(root, dir), { withFileTypes: true })) {
+        if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+        const file = resolveInside(root, path.join(dir, entry.name));
+        if (entry.isDirectory()) walk(file);
+        else if (entry.isFile() && file.endsWith('.ts')) project.addSourceFileAtPath(file);
+      }
+    };
+    for (const dir of sourceRoots)
+      if (fs.existsSync(path.join(root, dir))) walk(path.join(root, dir));
   }
 
   const rel = (file: string) => path.relative(root, file).replace(/\\/g, '/');
@@ -239,6 +258,26 @@ export function collectManifest(rootPath: string, options: CollectOptions = {}):
   const routes: ManifestRoute[] = [];
   const dtos: Record<string, ManifestDto> = {};
   const aspects: ManifestAspect[] = [];
+  const dtoClasses = project
+    .getSourceFiles()
+    .filter((f) => isDtoFile(f.getFilePath()))
+    .flatMap((f) => f.getClasses())
+    .filter((c) => !!c.getName());
+  const schemas = dtoSchemas(dtoClasses, pending);
+  const identifiers = new Map<string, string>();
+  for (const file of project.getSourceFiles())
+    for (const cls of file.getClasses()) {
+      const dec = cls
+        .getDecorators()
+        .find((d) =>
+          ['Service', 'Component', 'Middleware', 'Plugin', 'Aspect'].includes(decoratorName(d))
+        );
+      if (cls.getName())
+        identifiers.set(
+          cls.getName()!,
+          dec ? (firstStringArg(dec) ?? cls.getName()!) : cls.getName()!
+        );
+    }
 
   for (const file of project.getSourceFiles()) {
     const filePath = rel(file.getFilePath());
@@ -249,30 +288,37 @@ export function collectManifest(rootPath: string, options: CollectOptions = {}):
       if (classDecorator) {
         const decName = decoratorName(classDecorator);
         const type = CLASS_COMPONENT_DECORATORS[decName];
-        const scope = optionsOf(classDecorator)
-          ?.getProperty('scope')
-          ?.asKind(SyntaxKind.PropertyAssignment)
-          ?.getInitializer()
-          ?.getText()
-          .replace(/['"`]/g, '');
+        const scopeNode =
+          cls.getDecorator('Scope')?.getArguments()[0] ??
+          optionsOf(classDecorator)
+            ?.getProperty('scope')
+            ?.asKind(SyntaxKind.PropertyAssignment)
+            ?.getInitializer();
+        const scopeValue = literal(scopeNode);
+        const scope = ['Singleton', 'Request', 'Prototype'].includes(scopeValue)
+          ? scopeValue
+          : undefined;
+        if (scopeNode && !scope) unresolved(pending, scopeNode, 'component.scope');
         components.push({
-          id: cls.getName() ?? '(anonymous)',
+          id: identifiers.get(cls.getName()!) ?? cls.getName() ?? '(anonymous)',
           type,
           scope,
           file: filePath,
           line: cls.getStartLineNumber(),
-          dependsOn: bestEffortDependencies(cls),
+          dependsOn: bestEffortDependencies(cls).map((id) => identifiers.get(id) ?? id),
         });
 
         if (decName === 'Aspect') {
           aspects.push({
             name: cls.getName() ?? '(anonymous)',
-            targets: classDecorator.getArguments().map((a) => a.getText().replace(/['"`]/g, '')),
+            targets: [],
             file: filePath,
           });
         }
-        if (decName === 'Controller') {
-          routes.push(...collectRoutes(cls, firstStringArg(classDecorator) ?? '/', filePath));
+        if (type === 'CONTROLLER') {
+          const base = classDecorator.getArguments().length ? firstStringArg(classDecorator) : '/';
+          if (base === undefined) unresolved(pending, classDecorator, 'route.path');
+          else routes.push(...collectRoutes(cls, base, filePath, pending));
         }
       }
 
@@ -288,40 +334,92 @@ export function collectManifest(rootPath: string, options: CollectOptions = {}):
               rules: prop.getDecorators().map(decoratorName).filter(Boolean),
             };
           }
-          dtos[name] = { file: filePath, fields };
+          dtos[name] = { file: filePath, fields, schema: schemas[name] };
         }
       }
     }
   }
 
+  for (const file of project.getSourceFiles())
+    for (const cls of file.getClasses()) {
+      const id = identifiers.get(cls.getName()!) ?? cls.getName();
+      for (const member of [cls, ...cls.getMethods()])
+        for (const dec of member.getDecorators()) {
+          if (
+            !['Around', 'Before', 'After', 'BeforeEach', 'AfterEach'].includes(decoratorName(dec))
+          )
+            continue;
+          const arg = dec.getArguments()[0];
+          const name =
+            typeof literal(arg) === 'string'
+              ? literal(arg)
+              : arg && Node.isIdentifier(arg)
+                ? arg.getText()
+                : undefined;
+          if (!name) {
+            unresolved(pending, dec, 'aspect.target');
+            continue;
+          }
+          let aspect = aspects.find((a) => a.name === name);
+          if (!aspect) {
+            aspect = { name, targets: [], file: rel(file.getFilePath()) };
+            aspects.push(aspect);
+          }
+          aspect.targets.push(member === cls ? id! : `${id}.${member.getName()}`);
+        }
+    }
+  const config = collectConfiguration(root, pending);
+  const declaredSchema = configDeclaration(project, pending);
   return {
+    schemaVersion: 1,
+    collectionMode: 'static',
+    unresolved: pending,
     ...(options.runtimeDir ? { runtime: collectRuntimeManifest(root, options.runtimeDir) } : {}),
     koatty: detectKoattyVersion(root),
     decoratorMode: options.decoratorMode ?? detectDecoratorMode(tsconfig),
-    protocols: options.protocols ?? detectProtocols(root),
+    protocols: options.protocols ?? config.protocols ?? [],
     components: components.sort((a, b) => a.id.localeCompare(b.id)),
     routes: routes.sort((a, b) => (a.path + a.method).localeCompare(b.path + b.method)),
     dtos,
     aspects: aspects.sort((a, b) => a.name.localeCompare(b.name)),
-    config: { keys: collectConfigKeys(root).sort() },
-    security: detectSecurityProfile(root),
+    config: {
+      keys: config.keys.sort(),
+      schema: declaredSchema ?? config.schema,
+      schemaSource: declaredSchema ? 'declaration' : 'inferred',
+    },
+    security: config.security,
   };
 }
 
 /** Constructor-injected parameters: best-effort dependency hints. */
 function bestEffortDependencies(cls: ClassDeclaration): string[] {
-  const ctor = cls.getConstructors()[0];
-  if (!ctor) return [];
-  return ctor
-    .getParameters()
+  const dependencies = (cls.getConstructors()[0]?.getParameters() ?? [])
     .map((p) => p.getTypeNode()?.getText())
     .filter(
-      (t): t is string => !!t && !['string', 'number', 'boolean', 'any', 'unknown'].includes(t)
+      (v): v is string => !!v && !['string', 'number', 'boolean', 'any', 'unknown'].includes(v)
     );
+  for (const prop of cls.getProperties()) {
+    const dec = prop.getDecorator('Autowired');
+    if (!dec) continue;
+    const arg = dec.getArguments()[0];
+    const id =
+      typeof literal(arg) === 'string'
+        ? literal(arg)
+        : arg && Node.isIdentifier(arg)
+          ? arg.getText()
+          : prop.getTypeNode()?.getText();
+    if (id) dependencies.push(id);
+  }
+  return [...new Set(dependencies)];
 }
 
 /** Collect the routes of one controller class. */
-function collectRoutes(cls: ClassDeclaration, basePath: string, file: string): ManifestRoute[] {
+function collectRoutes(
+  cls: ClassDeclaration,
+  basePath: string,
+  file: string,
+  pending: Unresolved[]
+): ManifestRoute[] {
   const out: ManifestRoute[] = [];
   const classDecorators = cls.getDecorators();
 
@@ -334,7 +432,21 @@ function collectRoutes(cls: ClassDeclaration, basePath: string, file: string): M
     const httpMethod =
       ROUTE_DECORATORS[decName] ??
       (routeDec.getArguments()[1]?.getText().replace(/['"`]/g, '') ?? 'GET').toUpperCase();
-    const subPath = firstStringArg(routeDec) ?? '/';
+    if (!['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS', 'ALL'].includes(httpMethod)) {
+      unresolved(pending, routeDec, 'route.method');
+      continue;
+    }
+    if (
+      routeDec.getArguments()[0] &&
+      Node.isArrayLiteralExpression(routeDec.getArguments()[0]) &&
+      (literal(routeDec.getArguments()[0])?.length ?? 0) > 1
+    )
+      unresolved(pending, routeDec, 'route.additionalPaths');
+    const subPath = routeDec.getArguments().length ? firstStringArg(routeDec) : '/';
+    if (subPath === undefined) {
+      unresolved(pending, routeDec, 'route.path');
+      continue;
+    }
 
     const middlewareNames = [...classDecorators, routeDec].flatMap((dec) => {
       const options = dec
@@ -359,8 +471,35 @@ function collectRoutes(cls: ClassDeclaration, basePath: string, file: string): M
         .filter(Boolean);
     });
 
+    const controllerDec = classDecorators.find(
+      (d) => CLASS_COMPONENT_DECORATORS[decoratorName(d)] === 'CONTROLLER'
+    )!;
+    const protocolNode = optionsOf(controllerDec)
+      ?.getProperty('protocol')
+      ?.asKind(SyntaxKind.PropertyAssignment)
+      ?.getInitializer();
+    let protocol =
+      (
+        {
+          WebSocketController: 'ws',
+          GrpcController: 'grpc',
+          GraphQLController: 'graphql',
+        } as Record<string, string>
+      )[decoratorName(controllerDec)] ?? 'http';
+    if (protocolNode) {
+      const value = literal(protocolNode);
+      const enumName = protocolNode
+        .getText()
+        .match(/^ControllerProtocol\.(http|websocket|grpc|graphql)$/)?.[1];
+      if (['http', 'ws', 'grpc', 'graphql'].includes(value)) protocol = value;
+      else if (enumName) protocol = enumName === 'websocket' ? 'ws' : enumName;
+      else {
+        unresolved(pending, protocolNode, 'route.protocol');
+        continue;
+      }
+    }
     out.push({
-      protocol: 'http',
+      protocol,
       method: httpMethod,
       path: joinPath(basePath, subPath),
       controller: cls.getName() ?? '(anonymous)',
@@ -372,7 +511,17 @@ function collectRoutes(cls: ClassDeclaration, basePath: string, file: string): M
           const dec = p.getDecorators().find((d) => PARAM_DECORATORS.has(decoratorName(d)));
           if (!dec) return undefined;
           const typeText = p.getTypeNode()?.getText();
-          const param: ManifestRouteParam = { source: decoratorName(dec).toLowerCase() };
+          const sources: Record<string, string> = {
+            RequestBody: 'body',
+            Body: 'body',
+            Get: 'query',
+            PathVariable: 'path',
+            RequestHeader: 'header',
+            Post: 'body',
+          };
+          const param: ManifestRouteParam = {
+            source: sources[decoratorName(dec)] ?? decoratorName(dec).toLowerCase(),
+          };
           if (typeText && /^[A-Z]/.test(typeText)) param.dto = typeText;
           return param;
         })
@@ -384,148 +533,143 @@ function collectRoutes(cls: ClassDeclaration, basePath: string, file: string): M
   return out;
 }
 
-/** Every config key (dotted paths) of the project - never a config value. */
-function collectConfigKeys(root: string): string[] {
-  const keys = new Set<string>();
-  for (const dirName of ['config']) {
-    const dir = path.join(root, dirName);
-    if (!fs.existsSync(dir)) continue;
-    for (const entry of fs.readdirSync(dir)) {
-      if (!/\.(ts|js|json)$/.test(entry) || /\.d\.ts$/.test(entry)) continue;
-      const file = path.join(dir, entry);
-      if (entry.endsWith('.json')) {
-        const json = readJson(file);
-        if (json && typeof json === 'object') {
-          for (const k of Object.keys(json)) keys.add(k);
-        }
-        continue;
-      }
-      const project = new Project({
-        skipAddingFilesFromTsConfig: true,
-        skipFileDependencyResolution: true,
-      });
-      const sf = project.addSourceFileAtPath(file);
-      for (const obj of sf.getDescendantsOfKind(SyntaxKind.ObjectLiteralExpression)) {
-        for (const k of literalKeys(obj)) keys.add(k);
-      }
-    }
-  }
-  return [...keys];
-}
-
 /** Framework version declared by the project (no network access). */
 function detectKoattyVersion(root: string): string {
-  const pkg = readJson(path.join(root, 'package.json'));
+  const pkg = readJson(resolveInside(root, 'package.json'));
   const deps = { ...(pkg?.dependencies ?? {}), ...(pkg?.devDependencies ?? {}) };
   const raw = deps.koatty ?? deps.koatty_core ?? 'unknown';
   return String(raw).replace(/^[^\d]*/, '') || 'unknown';
 }
 
 function detectDecoratorMode(tsconfig: any): DecoratorMode {
-  const compilerOptions = tsconfig?.compilerOptions ?? {};
-  if (compilerOptions.experimentalDecorators === false) return 'tc39';
-  return 'legacy';
+  if (!tsconfig) return 'unknown';
+  return tsconfig.experimentalDecorators === true ? 'legacy' : 'tc39';
 }
 
-/** Protocols from `config/server.ts` (`protocol` key), defaulting to http. */
-function detectProtocols(root: string): string[] {
-  const candidates = ['config/server.ts', 'config/server.js', 'config/server.json'];
-  for (const candidate of candidates) {
-    const file = path.join(root, candidate);
-    if (!fs.existsSync(file)) continue;
-    if (candidate.endsWith('.json')) {
-      const json = readJson(file);
-      return normalizeProtocols(json?.protocol);
-    }
-    const project = new Project({
-      skipAddingFilesFromTsConfig: true,
-      skipFileDependencyResolution: true,
+function readTsConfig(
+  root: string,
+  file: string,
+  pending: Unresolved[]
+): ts.CompilerOptions | undefined {
+  if (!fs.existsSync(file)) {
+    pending.push({
+      file: 'tsconfig.json',
+      line: 1,
+      kind: 'decoratorMode',
+      reason: 'Configuration missing',
     });
-    const sf = project.addSourceFileAtPath(file);
-    for (const prop of sf.getDescendantsOfKind(SyntaxKind.PropertyAssignment)) {
-      if (prop.getName().replace(/['"`]/g, '') !== 'protocol') continue;
-      const text = prop.getInitializer()?.getText() ?? '';
-      const literals = [...text.matchAll(/['"`]([^'"`]+)['"`]/g)].map((m) => m[1]);
-      if (literals.length) return literals;
-    }
+    return undefined;
   }
-  return ['http'];
-}
-
-function normalizeProtocols(value: unknown): string[] {
-  if (typeof value === 'string') return [value];
-  if (Array.isArray(value)) return value.map(String);
-  return ['http'];
-}
-
-/** Effective security profile, if the project declares one. */
-function detectSecurityProfile(root: string): { profile?: string } {
-  const candidates = ['config/security.ts', 'config/security.js', 'config/security.json'];
-  for (const candidate of candidates) {
-    const file = path.join(root, candidate);
-    if (!fs.existsSync(file)) continue;
-    if (candidate.endsWith('.json')) {
-      const json = readJson(file);
-      if (typeof json?.profile === 'string') return { profile: json.profile };
-      continue;
-    }
-    const project = new Project({
-      skipAddingFilesFromTsConfig: true,
-      skipFileDependencyResolution: true,
+  const host = {
+    ...ts.sys,
+    readFile: (f: string) => ts.sys.readFile(resolveInside(root, f)),
+    fileExists: (f: string) => fs.existsSync(resolveInside(root, f)),
+  };
+  try {
+    const config = ts.readConfigFile(file, host.readFile);
+    if (config.error) throw new Error();
+    const parsed = ts.parseJsonConfigFileContent(config.config, host, root);
+    if (parsed.errors.some((e) => e.code !== 18003)) throw new Error();
+    return parsed.options;
+  } catch {
+    pending.push({
+      file: 'tsconfig.json',
+      line: 1,
+      kind: 'decoratorMode',
+      reason: 'Configuration could not be safely resolved',
     });
-    const sf = project.addSourceFileAtPath(file);
-    for (const prop of sf.getDescendantsOfKind(SyntaxKind.PropertyAssignment)) {
-      if (prop.getName().replace(/['"`]/g, '') !== 'profile') continue;
-      const value = prop.getInitializer()?.getText().replace(/['"`]/g, '');
-      if (value) return { profile: value };
-    }
+    return undefined;
   }
-  return {};
 }
 
-/**
- * Structural validation of a manifest: returns the list of problems.
- *
- * Used by tests and by `koatty manifest --validate`; an empty array means the
- * manifest satisfies the documented contract.
- */
-export function validateManifest(manifest: any): string[] {
-  const errors: string[] = [];
-  const isString = (v: unknown) => typeof v === 'string' && v.length > 0;
-
-  if (!manifest || typeof manifest !== 'object') return ['manifest is not an object'];
-  if (!isString(manifest.koatty)) errors.push('koatty version is missing');
-  if (!['legacy', 'tc39'].includes(manifest.decoratorMode))
-    errors.push('decoratorMode must be legacy|tc39');
-  if (!Array.isArray(manifest.protocols) || !manifest.protocols.length)
-    errors.push('protocols must be a non-empty array');
-
-  for (const key of ['components', 'routes', 'aspects']) {
-    if (!Array.isArray(manifest[key])) errors.push(`${key} must be an array`);
-  }
-  for (const [i, c] of (manifest.components ?? []).entries()) {
-    if (!isString(c?.id)) errors.push(`components[${i}].id is missing`);
-    if (!isString(c?.type)) errors.push(`components[${i}].type is missing`);
-    if (!isString(c?.file)) errors.push(`components[${i}].file is missing`);
-    if (typeof c?.line !== 'number') errors.push(`components[${i}].line must be a number`);
-    if (!Array.isArray(c?.dependsOn)) errors.push(`components[${i}].dependsOn must be an array`);
-  }
-  for (const [i, r] of (manifest.routes ?? []).entries()) {
-    for (const key of ['method', 'path', 'controller', 'handler', 'file']) {
-      if (!isString(r?.[key])) errors.push(`routes[${i}].${key} is missing`);
+function collectConfiguration(root: string, pending: Unresolved[]) {
+  const keys = new Set<string>();
+  const properties: JsonSchema = {};
+  const result: {
+    keys: string[];
+    schema: JsonSchema;
+    security: { profile?: string };
+    protocols?: string[];
+  } = { keys: [], schema: { type: 'object', properties }, security: {} };
+  const shape = (node: Node, prefix: string): JsonSchema => {
+    if (Node.isObjectLiteralExpression(node)) {
+      const props: JsonSchema = {};
+      for (const prop of node.getProperties()) {
+        if (!Node.isPropertyAssignment(prop)) {
+          unresolved(pending, prop, 'config.keys');
+          continue;
+        }
+        const nameNode = prop.getNameNode();
+        const key = Node.isComputedPropertyName(nameNode)
+          ? literal(nameNode.getExpression())
+          : prop.getName().replace(/^['"]|['"]$/g, '');
+        if (typeof key !== 'string') {
+          unresolved(pending, prop, 'config.keys');
+          continue;
+        }
+        keys.add(key);
+        keys.add(`${prefix}.${key}`);
+        const init = prop.getInitializer();
+        props[key] = init ? shape(init, `${prefix}.${key}`) : {};
+        if (key === 'profile' && (prefix === 'security' || prefix.endsWith('.security'))) {
+          const value = literal(init);
+          if (['development', 'standard', 'strict'].includes(value))
+            result.security.profile = value;
+          else unresolved(pending, prop, 'security.profile');
+        }
+        if (key === 'protocol' && prefix === 'server') {
+          const value = literal(init);
+          const values = Array.isArray(value) ? value : [value];
+          if (values.every((v) => ['http', 'https', 'ws', 'wss', 'grpc', 'graphql'].includes(v)))
+            result.protocols = values;
+          else unresolved(pending, prop, 'protocols');
+        }
+      }
+      return { type: 'object', properties: props };
     }
-    if (!r.path.startsWith('/')) errors.push(`routes[${i}].path must start with /`);
-    for (const key of ['middleware', 'params']) {
-      if (!Array.isArray(r?.[key])) errors.push(`routes[${i}].${key} must be an array`);
+    const value = literal(node);
+    if (value === undefined) {
+      unresolved(pending, node, 'config.schema');
+      return {};
+    }
+    if (Array.isArray(value)) return { type: 'array' };
+    if (value === null) return { type: 'null' };
+    return { type: typeof value };
+  };
+  for (const dirName of ['config', 'src/config', 'app/config']) {
+    const dir = resolveInside(root, dirName);
+    if (!fs.existsSync(dir)) continue;
+    for (const entry of fs.readdirSync(dir)) {
+      if (!/\.(ts|js|json)$/.test(entry) || entry.endsWith('.d.ts')) continue;
+      const file = resolveInside(root, path.join(dir, entry));
+      const project = new Project({
+        skipAddingFilesFromTsConfig: true,
+        skipFileDependencyResolution: true,
+      });
+      const sf = entry.endsWith('.json')
+        ? project.createSourceFile(
+            'config.ts',
+            `export default (${fs.readFileSync(file, 'utf8')});`
+          )
+        : project.addSourceFileAtPath(file);
+      const expression = sf.getExportAssignments()[0]?.getExpression();
+      let obj: Node | undefined = expression;
+      if (obj && Node.isArrowFunction(obj)) obj = obj.getBody();
+      if (obj && Node.isParenthesizedExpression(obj)) obj = obj.getExpression();
+      if (obj && Node.isBlock(obj))
+        obj = obj.getStatements().find(Node.isReturnStatement)?.getExpression();
+      if (obj && Node.isParenthesizedExpression(obj)) obj = obj.getExpression();
+      const namespace = entry.replace(/\.(ts|js|json)$/, '');
+      if (obj && Node.isObjectLiteralExpression(obj)) properties[namespace] = shape(obj, namespace);
+      else unresolved(pending, sf, 'config.keys');
     }
   }
-  if (typeof manifest.dtos !== 'object' || manifest.dtos === null)
-    errors.push('dtos must be an object');
-  if (!Array.isArray(manifest.config?.keys)) errors.push('config.keys must be an array');
-  if (!manifest.security || typeof manifest.security !== 'object')
-    errors.push('security must be an object');
+  result.keys = [...keys];
+  return result;
+}
 
-  return errors;
+export function validateManifest(manifest: unknown): string[] {
+  return checkManifest(manifest);
 }
 
 /**
@@ -534,6 +678,7 @@ export function validateManifest(manifest: any): string[] {
 export function renderManifestMarkdown(manifest: KoattyManifest): string {
   const lines: string[] = [];
   lines.push('# Koatty 应用清单');
+  lines.push(`采集模式：static；未解析项：${manifest.unresolved.length}`);
   lines.push('');
   lines.push(`- koatty: \`${manifest.koatty}\``);
   lines.push(`- decoratorMode: \`${manifest.decoratorMode}\``);

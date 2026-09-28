@@ -18,9 +18,9 @@ describe('ModuleGenerator', () => {
 
     const changes = cs.getChanges();
     // 1 model, 1 dto, 1 service, 1 controller, 1 test skeleton（不再生成 index.ts）
-    expect(changes.length).toBe(5);
+    expect(changes.length).toBe(7);
     expect(changes.some((c) => c.path === 'src/model/UserModel.ts')).toBe(true);
-    expect(changes.some((c) => c.path === 'src/dto/UserDto.ts')).toBe(true);
+    expect(changes.some((c) => c.path === 'src/dto/CreateUserDto.ts')).toBe(true);
     expect(changes.some((c) => c.path === 'src/service/UserService.ts')).toBe(true);
     expect(changes.some((c) => c.path === 'src/controller/UserController.ts')).toBe(true);
     // E-4: the module ships a runnable test skeleton.

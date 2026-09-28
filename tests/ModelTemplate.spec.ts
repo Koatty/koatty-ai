@@ -26,10 +26,10 @@ describe('Model Template', () => {
     expect(result).toContain('export class UserModel');
     expect(result).toContain('extends BaseEntity');
     expect(result).toContain('@PrimaryGeneratedColumn()');
-    expect(result).toContain('id: number;');
+    expect(result).toContain('id!: number;');
     expect(result).toContain("type: 'varchar'");
     expect(result).toContain('length: 50');
-    expect(result).toContain('username: string;');
+    expect(result).toContain('username!: string;');
     expect(result).toContain('default:');
     expect(result).toContain('@CreateDateColumn()');
     expect(result).toContain('@UpdateDateColumn()');

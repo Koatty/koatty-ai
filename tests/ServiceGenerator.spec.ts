@@ -21,7 +21,7 @@ describe('ServiceGenerator', () => {
     expect(changes[0].path).toBe('src/service/UserService.ts');
     expect(changes[0].content).toContain('@Service()');
     expect(changes[0].content).toContain('class UserService');
-    expect(changes[0].content).toContain('@Autowired()');
+    expect(changes[0].content).toContain('UserModel.findAndCount');
     expect(changes[0].content).toContain('async softDelete(id: number)');
   });
 });

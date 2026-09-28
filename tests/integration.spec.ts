@@ -40,7 +40,7 @@ describe('Integration: Complete Module Generation', () => {
 
     const filePaths = files.map((f) => f.path);
     expect(filePaths).toContain('src/model/UserModel.ts');
-    expect(filePaths).toContain('src/dto/UserDto.ts');
+    expect(filePaths).toContain('src/dto/CreateUserDto.ts');
     expect(filePaths).toContain('src/service/UserService.ts');
     expect(filePaths).toContain('src/controller/UserController.ts');
     // user.yml 中 auth.enabled: true，会额外生成 AuthAspect
@@ -64,7 +64,7 @@ describe('Integration: Complete Module Generation', () => {
 
     // Verify files exist on disk
     expect(fs.existsSync(path.join(outputDir, 'src/model/UserModel.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(outputDir, 'src/dto/UserDto.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(outputDir, 'src/dto/CreateUserDto.ts'))).toBe(true);
     expect(fs.existsSync(path.join(outputDir, 'src/service/UserService.ts'))).toBe(true);
     expect(fs.existsSync(path.join(outputDir, 'src/controller/UserController.ts'))).toBe(true);
   });
@@ -85,18 +85,19 @@ describe('Integration: Complete Module Generation', () => {
     }
 
     // Read generated files and check they contain expected content
-    const modelContent = fs.readFileSync(
-      path.join(outputDir, 'src/model/UserModel.ts'),
-      'utf-8'
-    );
+    const modelContent = fs.readFileSync(path.join(outputDir, 'src/model/UserModel.ts'), 'utf-8');
     expect(modelContent).toContain('export class UserModel');
     expect(modelContent).toContain('@Entity');
     expect(modelContent).toContain('@Column');
 
-    const dtoContent = fs.readFileSync(path.join(outputDir, 'src/dto/UserDto.ts'), 'utf-8');
+    const dtoContent = fs.readFileSync(path.join(outputDir, 'src/dto/CreateUserDto.ts'), 'utf-8');
     expect(dtoContent).toContain('export class CreateUserDto');
-    expect(dtoContent).toContain('export class UpdateUserDto');
-    expect(dtoContent).toContain('export class QueryUserDto');
+    expect(fs.readFileSync(path.join(outputDir, 'src/dto/UpdateUserDto.ts'), 'utf8')).toContain(
+      'export class UpdateUserDto'
+    );
+    expect(fs.readFileSync(path.join(outputDir, 'src/dto/QueryUserDto.ts'), 'utf8')).toContain(
+      'export class QueryUserDto'
+    );
 
     const serviceContent = fs.readFileSync(
       path.join(outputDir, 'src/service/UserService.ts'),

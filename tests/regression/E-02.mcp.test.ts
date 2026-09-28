@@ -18,7 +18,7 @@ import * as path from 'path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createMcpServer } from '../../src/mcp/server';
-import { isRunnableTestFile, listTools, MCP_TOOLS } from '../../src/mcp/tools';
+import { hashChangeSet, isRunnableTestFile, listTools, MCP_TOOLS } from '../../src/mcp/tools';
 import { validateManifest, KoattyManifest } from '../../src/manifest';
 
 const INLINE_SPEC = 'module: article\nfields:\n  id:\n    type: number\n    primary: true\n';
@@ -49,8 +49,10 @@ export class UserService {
   find(id: string) { return { id }; }
 }
 `,
-    'docs/guides/security.md': '# Security\n\nThe security profile is configured in config/security.ts.\n',
-    'tests/unit/sample.test.ts': 'describe("sample", () => { it("passes", () => { expect(1).toBe(1); }); });\n',
+    'docs/guides/security.md':
+      '# Security\n\nThe security profile is configured in config/security.ts.\n',
+    'tests/unit/sample.test.ts':
+      'describe("sample", () => { it("passes", () => { expect(1).toBe(1); }); });\n',
   };
 
   for (const [rel, content] of Object.entries(files)) {
@@ -90,7 +92,11 @@ async function callTool(client: Client, name: string, args: Record<string, unkno
   return { text, isError: Boolean(result.isError) };
 }
 
-async function callJson<T>(client: Client, name: string, args: Record<string, unknown>): Promise<T> {
+async function callJson<T>(
+  client: Client,
+  name: string,
+  args: Record<string, unknown>
+): Promise<T> {
   const { text, isError } = await callTool(client, name, args);
   if (isError) throw new Error(text);
   return JSON.parse(text) as T;
@@ -212,9 +218,9 @@ describe('E-02: koatty mcp', () => {
 
     // A read-only plan must not create anything on disk; `modify` entries point
     // at files that already exist, so only `create` entries are checked.
-    expect(plan.changeset.changes.filter((change) => change.type === 'create').length).toBeGreaterThan(
-      0
-    );
+    expect(
+      plan.changeset.changes.filter((change) => change.type === 'create').length
+    ).toBeGreaterThan(0);
     for (const change of plan.changeset.changes) {
       expect(change.path.startsWith('..')).toBe(false);
       if (change.type === 'create') {
@@ -261,7 +267,7 @@ describe('E-02: koatty mcp', () => {
     expect(recomputed.hash).toMatch(/^[0-9a-f]{64}$/);
     const escapedAgain = await callTool(conn.client, 'koatty_apply', {
       changeset: escapeOnly.changeset,
-      hash: plan.hash,
+      hash: hashChangeSet(escapeOnly.changeset as any),
     });
     expect(escapedAgain.isError).toBe(true);
     expect(fs.existsSync(path.join(root, '..', 'outside.txt'))).toBe(false);
@@ -270,13 +276,20 @@ describe('E-02: koatty mcp', () => {
   test('koatty_apply defaults to a dry run and writes only inside the root otherwise', async () => {
     const plan = await callJson<{
       hash: string;
-      changeset: { module: string; changes: Array<{ type: string; path: string; content?: string }> };
+      changeset: {
+        module: string;
+        changes: Array<{ type: string; path: string; content?: string }>;
+      };
     }>(conn.client, 'koatty_plan', { spec: INLINE_SPEC });
 
-    const preview = await callJson<{ dryRun: boolean; changes: string[] }>(conn.client, 'koatty_apply', {
-      changeset: plan.changeset,
-      hash: plan.hash,
-    });
+    const preview = await callJson<{ dryRun: boolean; changes: string[] }>(
+      conn.client,
+      'koatty_apply',
+      {
+        changeset: plan.changeset,
+        hash: plan.hash,
+      }
+    );
     expect(preview.dryRun).toBe(true);
     expect(preview.changes).toHaveLength(plan.changeset.changes.length);
     for (const change of plan.changeset.changes) {
@@ -285,11 +298,15 @@ describe('E-02: koatty mcp', () => {
       }
     }
 
-    const applied = await callJson<{ dryRun: boolean; written: string[] }>(conn.client, 'koatty_apply', {
-      changeset: plan.changeset,
-      hash: plan.hash,
-      dryRun: false,
-    });
+    const applied = await callJson<{ dryRun: boolean; written: string[] }>(
+      conn.client,
+      'koatty_apply',
+      {
+        changeset: plan.changeset,
+        hash: plan.hash,
+        dryRun: false,
+      }
+    );
     expect(applied.dryRun).toBe(false);
     expect(applied.written).toHaveLength(plan.changeset.changes.length);
     for (const change of plan.changeset.changes) {
@@ -305,7 +322,11 @@ describe('E-02: koatty mcp', () => {
     expect(isRunnableTestFile('src/controller/UserController.ts')).toBe(false);
     expect(isRunnableTestFile('tests/helpers.ts')).toBe(false);
 
-    for (const file of ['src/controller/UserController.ts', '../outside.test.ts', 'tests/helpers.ts']) {
+    for (const file of [
+      'src/controller/UserController.ts',
+      '../outside.test.ts',
+      'tests/helpers.ts',
+    ]) {
       const result = await callTool(conn.client, 'koatty_test', { file });
       expect(result.isError).toBe(true);
       expect(result.text).toMatch(/Refusing to run|escapes project root/);
@@ -313,11 +334,10 @@ describe('E-02: koatty mcp', () => {
   });
 
   test('koatty_docs searches the project documentation', async () => {
-    const docs = await callJson<{ matched: number; matches: Array<{ file: string; text: string }> }>(
-      conn.client,
-      'koatty_docs',
-      { topic: 'security profile' }
-    );
+    const docs = await callJson<{
+      matched: number;
+      matches: Array<{ file: string; text: string }>;
+    }>(conn.client, 'koatty_docs', { topic: 'security profile' });
     expect(docs.matched).toBe(1);
     expect(docs.matches[0].file).toBe('docs/guides/security.md');
     expect(docs.matches[0].text).toContain('security profile');
@@ -330,7 +350,7 @@ describe('E-02: koatty mcp', () => {
 
     const missing = await callTool(conn.client, 'koatty_explain_component', {});
     expect(missing.isError).toBe(true);
-    expect(missing.text).toContain('Missing required argument');
+    expect(missing.text).toContain('Invalid tool arguments');
 
     const badSpec = await callTool(conn.client, 'koatty_plan', {});
     expect(badSpec.isError).toBe(true);

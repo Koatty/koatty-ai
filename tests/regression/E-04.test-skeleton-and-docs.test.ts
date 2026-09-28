@@ -91,7 +91,9 @@ describe('E-04: generated modules ship a test skeleton', () => {
 
     const skeleton = changeset.changes.find((change) => change.path === 'test/article.test.ts')!;
     expect(skeleton.type).toBe('create');
-    expect(skeleton.content).toContain("import { ArticleService } from '../src/service/ArticleService'");
+    expect(skeleton.content).toContain(
+      "import { ArticleService } from '../src/service/ArticleService'"
+    );
     expect(skeleton.content).toContain("describe('ArticleService'");
     expect(skeleton.content).toContain('exposes the generated CRUD API');
     expect(skeleton.content).not.toContain('{{');
@@ -107,4 +109,34 @@ describe('E-04: generated modules ship a test skeleton', () => {
     expect(jestConfig.content as string).toContain("'**/*.test.ts'");
     expect('test/article.test.ts'.endsWith('.test.ts')).toBe(true);
   });
+});
+
+// Single-component commands must also create a test, without overwriting an existing one.
+test('standalone Controller and Service commands include tests', async () => {
+  const { runCreateModule } = await import('../../src/cli/commands/create');
+  const { QualityService } = await import('../../src/utils/QualityService');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'e04-single-'));
+  const previous = process.cwd();
+  const format = jest.spyOn(QualityService, 'formatFiles').mockImplementation(() => {});
+  const output = jest.spyOn(console, 'log').mockImplementation(() => {});
+  try {
+    fs.writeFileSync(path.join(root, '.koattysrc'), '{}');
+    process.chdir(root);
+    await runCreateModule('controller', 'sample');
+    await runCreateModule('service', 'sample');
+    expect(fs.readFileSync(path.join(root, 'test/SampleController.test.ts'), 'utf8')).toContain(
+      'SampleController'
+    );
+    expect(fs.readFileSync(path.join(root, 'test/SampleService.test.ts'), 'utf8')).toContain(
+      'SampleService'
+    );
+    fs.writeFileSync(path.join(root, 'test/SampleController.test.ts'), 'KEEP');
+    await runCreateModule('controller', 'sample');
+    expect(fs.readFileSync(path.join(root, 'test/SampleController.test.ts'), 'utf8')).toBe('KEEP');
+  } finally {
+    process.chdir(previous);
+    format.mockRestore();
+    output.mockRestore();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

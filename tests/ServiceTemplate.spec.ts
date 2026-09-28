@@ -20,8 +20,8 @@ describe('Service Template', () => {
     const result = template(context);
     expect(result).toContain('@Service()');
     expect(result).toContain('export class UserService');
-    expect(result).toContain('@Autowired()');
-    expect(result).toContain('private userModel: UserModel');
+    expect(result).toContain('UserModel.findAndCount');
+    expect(result).not.toContain('private userModel: UserModel');
     expect(result).toContain('async findAll(query: QueryUserDto)');
     expect(result).toContain('async create(dto: CreateUserDto)');
     expect(result).toContain('async softDelete(id: number)');

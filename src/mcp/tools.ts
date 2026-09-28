@@ -11,6 +11,7 @@
  *
  * @License MIT
  */
+import Ajv from 'ajv';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -18,7 +19,7 @@ import { execFile } from 'child_process';
 import { collectManifest, validateManifest, KoattyManifest } from '../manifest';
 import { GeneratorPipeline } from '../pipeline/GeneratorPipeline';
 import { SpecParser } from '../parser/SpecParser';
-import { FileOperator } from '../utils/FileOperator';
+import { applyTransaction, snapshotFile } from './transaction';
 import { resolveInside } from '../utils/sandbox';
 import { ChangeSetInfo, FileChangeInfo } from '../types/changeset';
 
@@ -51,6 +52,18 @@ export interface McpToolResult {
 }
 
 type ToolArgs = Record<string, unknown>;
+// Context identity is the MCP connection; never accept a plan supplied by another connection.
+const issuedPlans = new WeakMap<
+  McpToolContext,
+  Map<
+    string,
+    {
+      root: string;
+      expires: number;
+      before: Array<ReturnType<typeof snapshotFile>>;
+    }
+  >
+>();
 
 const READ_ONLY = { readOnlyHint: true, idempotentHint: true } as const;
 
@@ -141,7 +154,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       required: ['file'],
       additionalProperties: false,
     },
-    annotations: { readOnlyHint: true, idempotentHint: true },
+    annotations: { readOnlyHint: false, idempotentHint: false, destructiveHint: true },
   },
   {
     name: 'koatty_docs',
@@ -158,6 +171,13 @@ export const MCP_TOOLS: McpToolDefinition[] = [
     annotations: READ_ONLY,
   },
 ];
+
+const inputValidators = new Map(
+  MCP_TOOLS.map((tool) => [
+    tool.name,
+    new Ajv({ strict: false, allErrors: true }).compile(tool.inputSchema),
+  ])
+);
 
 function asString(args: ToolArgs, key: string, required = false): string | undefined {
   const value = args[key];
@@ -192,6 +212,8 @@ function relativeInside(root: string, target: string): string {
 /** Deterministic hash over the parts of a changeset that koatty_apply consumes. */
 export function hashChangeSet(info: ChangeSetInfo): string {
   const canonical = {
+    id: info.id,
+    timestamp: info.timestamp,
     module: info.module,
     changes: (info.changes ?? []).map((change) => ({
       type: change.type,
@@ -284,7 +306,18 @@ async function toolPlan(args: ToolArgs, ctx: McpToolContext): Promise<unknown> {
 
   const changeset = await pipeline.execute();
   const info = changeset.toJSON();
+  parseChangeSet(info);
   const hash = hashChangeSet(info);
+  const root = fs.realpathSync(ctx.root);
+  const before = info.changes.map((change) => snapshotFile(root, change.path));
+  let plans = issuedPlans.get(ctx);
+  if (!plans) {
+    plans = new Map();
+    issuedPlans.set(ctx, plans);
+  }
+  for (const [key, plan] of plans) if (plan.expires < Date.now()) plans.delete(key);
+  if (plans.size >= 32) plans.delete(plans.keys().next().value!);
+  plans.set(hash, { root, before, expires: Date.now() + 10 * 60 * 1000 });
 
   return {
     module: info.module,
@@ -298,16 +331,36 @@ async function toolPlan(args: ToolArgs, ctx: McpToolContext): Promise<unknown> {
 function parseChangeSet(raw: unknown): ChangeSetInfo {
   const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
   const info = parsed as ChangeSetInfo;
-  if (!info || typeof info !== 'object' || !Array.isArray(info.changes)) {
+  if (
+    !info ||
+    typeof info !== 'object' ||
+    !Array.isArray(info.changes) ||
+    typeof info.module !== 'string'
+  ) {
     throw new Error('Invalid changeset: expected { module, changes: [...] }');
   }
   for (const change of info.changes as FileChangeInfo[]) {
-    if (change.type !== 'create' && change.type !== 'modify' && change.type !== 'delete') {
+    if (
+      !change ||
+      (change.type !== 'create' && change.type !== 'modify' && change.type !== 'delete')
+    ) {
       throw new Error(`Unsupported change type: ${String(change?.type)}`);
     }
     if (typeof change.path !== 'string' || !change.path.trim()) {
       throw new Error('Invalid changeset: every change needs a path');
     }
+  }
+  const paths = new Set<string>();
+  for (const change of info.changes) {
+    if (change.type !== 'delete' && typeof change.content !== 'string') {
+      throw new Error('Invalid changeset: create/modify content must be a string');
+    }
+    if (change.content !== undefined && typeof change.content !== 'string') {
+      throw new Error('Invalid changeset content');
+    }
+    const normalized = path.normalize(change.path);
+    if (paths.has(normalized)) throw new Error('Duplicate changeset path');
+    paths.add(normalized);
   }
   return info;
 }
@@ -322,27 +375,28 @@ function toolApply(args: ToolArgs, ctx: McpToolContext): unknown {
     );
   }
 
-  const dryRun = args.dryRun === undefined ? true : Boolean(args.dryRun);
-  const targets = info.changes.map((change) => ({
-    change,
-    absolute: resolveInside(ctx.root, change.path),
-  }));
-
-  if (dryRun) {
-    return { dryRun: true, module: info.module, changes: describeChanges(info) };
+  if (args.dryRun !== undefined && typeof args.dryRun !== 'boolean') {
+    throw new Error('dryRun must be a boolean');
   }
-
-  const written: string[] = [];
-  for (const { change, absolute } of targets) {
-    if (change.type === 'delete') {
-      FileOperator.deleteFile(absolute, ctx.root);
-    } else {
-      FileOperator.writeFile(absolute, change.content ?? '', true, undefined, ctx.root);
+  const root = fs.realpathSync(ctx.root);
+  const plans = issuedPlans.get(ctx);
+  const plan = plans?.get(expected);
+  if (!plan || plan.root !== root || plan.expires < Date.now()) {
+    throw new Error(
+      'Plan was not issued by this session, expired or was already applied; run koatty_plan again'
+    );
+  }
+  const dryRun = args.dryRun !== false;
+  // Check all preimages even for preview, and again at the transaction boundary.
+  for (let i = 0; i < info.changes.length; i++) {
+    if (snapshotFile(root, info.changes[i].path).digest !== plan.before[i].digest) {
+      throw new Error('Project changed since plan; run koatty_plan again');
     }
-    written.push(toPosix(change.path));
   }
-
-  return { dryRun: false, module: info.module, written };
+  if (dryRun) return { dryRun: true, module: info.module, changes: describeChanges(info) };
+  plans!.delete(expected);
+  applyTransaction(root, info.changes, plan.before);
+  return { dryRun: false, module: info.module, written: info.changes.map((c) => toPosix(c.path)) };
 }
 
 function tail(text: string, max = 4000): string {
@@ -394,9 +448,10 @@ function listDocs(root: string): string[] {
     if (depth > 4 || files.length > 500) return;
     let stat: fs.Stats;
     try {
-      stat = fs.statSync(target);
-    } catch {
-      return;
+      stat = fs.lstatSync(resolveInside(root, target));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+      throw error;
     }
     if (stat.isFile()) {
       if (/\.(md|mdx|txt)$/i.test(target)) files.push(target);
@@ -419,7 +474,7 @@ function toolDocs(args: ToolArgs, ctx: McpToolContext): unknown {
 
   for (const file of listDocs(ctx.root)) {
     if (matches.length >= limit) break;
-    const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+    const lines = fs.readFileSync(resolveInside(ctx.root, file), 'utf8').split(/\r?\n/);
     for (let index = 0; index < lines.length; index++) {
       if (!lines[index].toLowerCase().includes(topic)) continue;
       matches.push({
@@ -458,6 +513,9 @@ export async function callTool(
 ): Promise<McpToolResult> {
   const handler = HANDLERS[name];
   if (!handler) throw new Error(`Unknown tool: ${name}`);
+  const validate = inputValidators.get(name)!;
+  if (!validate(args ?? {}))
+    throw new Error(`Invalid tool arguments: ${JSON.stringify(validate.errors)}`);
   const data = await handler(args ?? {}, ctx);
   return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
 }

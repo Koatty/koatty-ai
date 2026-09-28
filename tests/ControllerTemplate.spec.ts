@@ -24,11 +24,11 @@ describe('Controller Template', () => {
     expect(result).toContain("@Controller('/v1/users')");
     expect(result).toContain('export class UserController');
     expect(result).toContain('@Autowired()');
-    expect(result).toContain('private userService: UserService');
+    expect(result).toContain('private userService!: UserService');
     expect(result).toContain('ctx: KoattyContext');
     expect(result).toContain("@GetMapping('/')");
     expect(result).toContain("@PostMapping('/')");
-    expect(result).toContain('@Validated()');
+    expect(result).toContain('@Validated({ types: [CreateUserDto] })');
     expect(result).toContain('await this.userService.softDelete(id)');
     // 无认证时不应有 BeforeEach / AuthAspect
     expect(result).not.toContain('@BeforeEach');
@@ -60,7 +60,9 @@ describe('Controller Template', () => {
     expect(result).toContain('@BeforeEach("AuthAspect")');
     expect(result).toContain('BeforeEach');
     // import 中包含 BeforeEach
-    expect(result).toContain('import { Controller, GetMapping, PostMapping, PutMapping, DeleteMapping, PathVariable, RequestBody, Query as QueryParam, Autowired, KoattyContext, BeforeEach }');
+    expect(result).toContain(
+      'import { Controller, GetMapping, PostMapping, PutMapping, DeleteMapping, PathVariable, RequestBody, Get, Autowired, KoattyContext, BeforeEach }'
+    );
     // 方法级不再有 @Before
     expect(result).not.toContain('@Before(');
     // 不使用不存在的装饰器

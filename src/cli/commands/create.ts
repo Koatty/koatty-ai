@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { resolveInside, writeInside } from '../../utils/sandbox';
 import { isKoattyApp } from '../../utils/koattyProject';
 import { TemplateLoader } from '../../generators/TemplateLoader';
 import { QualityService } from '../../utils/QualityService';
@@ -180,6 +181,7 @@ export async function runCreateModule(
     fileContent: string,
     opts?: { overwrite?: boolean; throwExists?: boolean }
   ): void {
+    filePath = resolveInside(process.cwd(), filePath);
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -194,7 +196,7 @@ export async function runCreateModule(
         return; // 跳过已存在
       }
     }
-    fs.writeFileSync(filePath, fileContent, 'utf-8');
+    writeInside(process.cwd(), filePath, fileContent);
     written.push(filePath);
   }
 
@@ -215,6 +217,12 @@ export async function runCreateModule(
     overwrite: overwriteOnExist,
     throwExists: throwOnExist,
   });
+
+  if (moduleType === 'controller' || moduleType === 'service') {
+    const testPath = path.join(process.cwd(), 'test', `${fileName}.test.ts`);
+    const testContent = `import { ${fileName} } from '../src/${outDir}/${fileName}';\n\ndescribe('${fileName}', () => {\n  it('exports a constructible component', () => {\n    expect(typeof ${fileName}).toBe('function');\n    expect(${fileName}.prototype).toBeDefined();\n  });\n  // Add request/behaviour assertions here as you implement the component.\n});\n`;
+    writeFile(testPath, testContent);
+  }
 
   // 处理 service interface 选项
   if (moduleType === 'service' && options?.interface) {

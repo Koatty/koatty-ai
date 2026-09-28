@@ -11,11 +11,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import {
-  collectManifest,
-  renderManifestMarkdown,
-  validateManifest,
-} from '../../src/manifest';
+import { collectManifest, renderManifestMarkdown, validateManifest } from '../../src/manifest';
 
 function writeFixture(root: string): void {
   const files: Record<string, string> = {
@@ -93,7 +89,9 @@ describe('E-01: koatty manifest', () => {
     const ids = manifest.components.map((c) => c.id);
     expect(ids).toEqual(expect.arrayContaining(['UserController', 'UserService']));
     expect(manifest.components.find((c) => c.id === 'UserService')?.type).toBe('SERVICE');
-    expect(manifest.components.find((c) => c.id === 'UserService')?.dependsOn).toEqual(['UserRepository']);
+    expect(manifest.components.find((c) => c.id === 'UserService')?.dependsOn).toEqual([
+      'UserRepository',
+    ]);
 
     const routes = manifest.routes;
     expect(routes).toHaveLength(2);
@@ -124,7 +122,9 @@ describe('E-01: koatty manifest', () => {
     const manifest = collectManifest(root);
     const json = JSON.stringify(manifest);
 
-    expect(manifest.config.keys).toEqual(expect.arrayContaining(['protocol', 'port', 'profile', 'host', 'password']));
+    expect(manifest.config.keys).toEqual(
+      expect.arrayContaining(['protocol', 'port', 'profile', 'host', 'password'])
+    );
     expect(json).not.toContain('super-secret-value');
     expect(json).not.toContain('db.internal.example');
     expect(json).not.toMatch(/\b8080\b/);

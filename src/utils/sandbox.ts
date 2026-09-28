@@ -29,6 +29,7 @@ export function resolveInside(root: string, target: string): string {
 
 /** Recheck at the write boundary and never follow a leaf symlink. */
 export function writeInside(root: string, target: string, content: string): void {
+  if (typeof content !== 'string') throw new Error('File content must be a string');
   const abs = resolveInside(root, target);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   resolveInside(root, abs);
