@@ -1,3 +1,9 @@
+## Unreleased — Phase A–F review (2026-09-30)
+
+Reject hard-linked write targets; delimit formatter/linter paths; align static DTO required/conditional rules and explicitly record nested uncertainty; strengthen sandbox and schema regressions.
+
+Migration: `docs/migration/phase-a-f-review-fixes.md` in the monorepo. No release has been applied.
+
 # koatty_cli
 
 ## Unreleased — Phase F audit fixes (2026-09-29)

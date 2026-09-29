@@ -27,7 +27,7 @@ export class QualityService {
   static formatFile(filePath: string): void {
     try {
       // SEC-10: argument-array execution, never through a shell
-      execFileSync('npx', ['prettier', '--write', filePath], { stdio: 'pipe' });
+      execFileSync('npx', ['prettier', '--write', '--', filePath], { stdio: 'pipe' });
     } catch (error) {
       console.warn(`⚠️ Formatting failed for ${filePath}: ${(error as any).message}`);
     }
@@ -38,7 +38,7 @@ export class QualityService {
    */
   static lintFile(filePath: string): { success: boolean; output: string } {
     try {
-      const output = execFileSync('npx', ['eslint', filePath, '--fix'], {
+      const output = execFileSync('npx', ['eslint', '--fix', '--', filePath], {
         encoding: 'utf-8',
         stdio: 'pipe',
       });

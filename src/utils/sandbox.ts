@@ -39,7 +39,9 @@ export function writeInside(root: string, target: string, content: string): void
     0o644
   );
   try {
-    if (!fs.fstatSync(fd).isFile()) throw new Error(`Not a regular file: ${target}`);
+    const stat = fs.fstatSync(fd);
+    if (stat.nlink !== 1) throw new Error(`Hard-linked write target is forbidden: ${target}`);
+    if (!stat.isFile()) throw new Error(`Not a regular file: ${target}`);
     fs.ftruncateSync(fd, 0);
     fs.writeFileSync(fd, content, 'utf8');
   } finally {

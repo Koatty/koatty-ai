@@ -110,13 +110,18 @@ export function dtoSchemas(
       if (p.isStatic()) continue;
       const schema = typeSchema(p.getTypeNode(), names, pending);
       const decorators = p.getDecorators();
-      if (
-        !p.hasQuestionToken() &&
-        !p.getInitializer() &&
-        !decorators.some((d) => d.getName() === 'IsOptional') &&
-        !p.getTypeNode()?.getText().includes('undefined')
-      )
+      if (!decorators.length) {
+        unresolved(pending, p, 'dto.undecorated');
+        continue;
+      }
+      if (!decorators.some((d) => ['IsOptional', 'ValidateIf'].includes(d.getName())))
         required.push(p.getName());
+      if (
+        decorators.some((d) => d.getName() === 'ValidateNested') ||
+        schema.$ref ||
+        schema.items?.$ref
+      )
+        unresolved(pending, p, 'dto.nested-runtime-policy');
       for (const d of decorators) {
         const name = d.getName();
         const options = literal(d.getArguments()[d.getArguments().length - 1]);

@@ -67,13 +67,28 @@ describe("SEC-10: GitService", () => {
   test("constructor does not queue git clean -f", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'koatty-git-'));
     try {
+      require('child_process').execFileSync('git', ['init', '--quiet', dir]);
+      fs.writeFileSync(path.join(dir, 'untracked.txt'), 'preserve');
       const git = new GitService(dir);
       // force the underlying simple-git to materialize; the queued clean
       // would run on the first command in the old implementation
       const isRepo = await git.isRepo();
-      expect(typeof isRepo).toBe('boolean');
+      expect(isRepo).toBe(true);
+      expect(fs.readFileSync(path.join(dir, 'untracked.txt'), 'utf8')).toBe('preserve');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+});
+
+test('P2 writeInside rejects hard links without modifying the external inode', () => {
+  const fs = require('fs'); const os = require('os'); const path = require('path');
+  const { writeInside } = require('../../src/utils/sandbox');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'koatty-hardlink-'));
+  try {
+    fs.mkdirSync(path.join(root, 'project')); fs.writeFileSync(path.join(root, 'outside'), 'preserved');
+    fs.linkSync(path.join(root, 'outside'), path.join(root, 'project', 'linked'));
+    expect(() => writeInside(path.join(root, 'project'), 'linked', 'changed')).toThrow(/Hard-linked/);
+    expect(fs.readFileSync(path.join(root, 'outside'), 'utf8')).toBe('preserved');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
