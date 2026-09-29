@@ -1,3 +1,4 @@
+import { applyDtoConstraint } from 'koatty_validation/schema-rules';
 import Ajv from 'ajv';
 import { ClassDeclaration, Node, SyntaxKind } from 'ts-morph';
 
@@ -118,7 +119,6 @@ export function dtoSchemas(
         required.push(p.getName());
       for (const d of decorators) {
         const name = d.getName();
-        const value = literal(d.getArguments()[0]);
         const options = literal(d.getArguments()[d.getArguments().length - 1]);
         const each = options && typeof options === 'object' && options.each === true;
         if (each && schema.type !== 'array') {
@@ -126,40 +126,11 @@ export function dtoSchemas(
           continue;
         }
         const target = each ? (schema.items ??= {}) : schema;
-        const constraints: Record<string, string> = {
-          MinLength: 'minLength',
-          MaxLength: 'maxLength',
-          Min: 'minimum',
-          Max: 'maximum',
-          Gte: 'minimum',
-          Lte: 'maximum',
-          Gt: 'exclusiveMinimum',
-          Lt: 'exclusiveMaximum',
-          ArrayMinSize: 'minItems',
-          ArrayMaxSize: 'maxItems',
-        };
-        if (constraints[name] && typeof value === 'number') target[constraints[name]] = value;
-        else if (['IsString', 'IsNumber', 'IsBoolean', 'IsInt', 'IsArray'].includes(name))
-          target.type = (
-            {
-              IsString: 'string',
-              IsNumber: 'number',
-              IsBoolean: 'boolean',
-              IsInt: 'integer',
-              IsArray: 'array',
-            } as any
-          )[name];
-        else if (
-          ['IsIn', 'IsEnum'].includes(name) &&
-          (Array.isArray(value) || (value && typeof value === 'object'))
-        )
-          target.enum = Array.isArray(value) ? value : Object.values(value);
-        else if (name === 'IsNotEmpty' && target.type === 'string')
-          target.minLength = Math.max(target.minLength || 0, 1);
-        else if (name === 'Equals' && value !== undefined) target.const = value;
-        else if (name === 'IsEmail') target.format = 'email';
-        else if (
-          !['IsOptional', 'IsDefined', 'Allow', 'Expose', 'Type', 'ValidateNested'].includes(name)
+        if (
+          !['IsOptional', 'IsDefined', 'Allow', 'Expose', 'Type', 'ValidateNested'].includes(
+            name
+          ) &&
+          !applyDtoConstraint(target, name, d.getArguments().map(literal))
         )
           unresolved(pending, d, 'dto.constraint');
       }

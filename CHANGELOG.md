@@ -1,5 +1,11 @@
 # koatty_cli
 
+## Unreleased — Phase F audit fixes (2026-09-29)
+
+- E1 静态 DTO schema 使用 koatty_validation/schema-rules 共享约束，不执行目标应用；新增规则一致性回归。
+- 迁移说明：`docs/migration/phase-f-audit-fixes.md`（主仓库）。
+
+
 ## Unreleased — Phase E audit fixes (2026-09-29)
 
 - Bind MCP apply to issued, expiring single-use session plans and unchanged preimages; validate all inputs before transactional staging and handled-failure rollback.
