@@ -1,6 +1,6 @@
 {
   "name": "koatty_cli",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "description": "Koatty CLI - Intelligent scaffolding tool for Koatty framework (replacement for koatty_cli)",
   "main": "dist/index.js",
   "bin": {

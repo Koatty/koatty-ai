@@ -1,5 +1,38 @@
 ## Unreleased — Phase A–F review (2026-09-30)
 
+## 5.1.0
+
+### Minor Changes
+
+- f0e9278: Phase A–D 审计修复，未发布：
+
+  - 容器注册表、类标识、实例注入与 AOP 解析均按容器隔离；注入不再写入共享原型。同名构造函数的元数据缓存不再串用。
+  - `app.container` 与 Core ALS 贯通；请求结束释放对应容器的请求实例。组件实例和事件处理器使用所属应用。
+  - 注册期构造路由 handler；控制器、参数元数据、中间件和 RouterFactory 使用应用容器。关闭一个应用不会清理另一应用的路由。
+  - 扫描目录、每个模块与缓存条目均以 realpath 校验根目录边界；越界路径直接拒绝，不再回退扫描整个项目。
+  - Bootstrap 自动创建应用独立容器，Loader/Router/注入链路使用 app.container；扫描同时处理默认导出与具名导出。
+  - SSE 复用普通路由和 streamSSE；现有 middleware 与 Around/run 承担鉴权、限流和方法包装。
+  - HTTPS/HTTP2 证书热更新及失败回退。
+  - Serve 使用连接追踪器，HTTP/3 移至独立实验包 koatty_http3；移除核心 QUIC 依赖及模拟监听。
+  - 生产构建可用既有 manifest 命令生成 runtime 清单；启动前逐文件校验路径与 SHA256。
+  - 修复独立安装缺失运行时/公开类型依赖，以及原生 Node ESM 入口加载错误。
+  - Config 复用既有双模式装饰器适配器，支持 TC39 字段初始化与应用隔离。
+
+  移除 Http3Server 等核心导出和入站池语义属于破坏性变更，因此 koatty 与 koatty_serve 必须按 major 发布，不能沿用原计划的 4.5.0 minor。koatty_http3 是首次发布包，按发布工具的新包流程单独处理；最终版本需与主包依赖同步。
+
+  迁移：docs/migration/phase-d-router-hotpath.md。D-5 实现及 D-7 清单已补齐；性能门槛、Linux CI 与部署验收仍未关闭。此文件不代表验收通过，不自动应用版本或发布。
+
+### Patch Changes
+
+- f0e9278: Close the second Phase A–F review: strict security config validation and environment resolution, explicit metrics trust, default WS Origin checks, hard-link-safe CLI writes and delimited tool arguments, DTO transformation and conservative schema diagnostics, privacy-safe telemetry, HTTP3 peer ownership and draining reference SSE service. MCP/LLM/Guard first-release major entries are in phase-f-audit-hardening. See docs/migration/phase-a-f-review-fixes.md. Do not treat local tests as release/client/provider acceptance.
+- f0e9278: Fix Phase E audit findings: bind MCP writes to issued session plans and unchanged files, validate inputs and recover handled write failures, reject documentation/source symlink escapes, and correctly classify test execution. Add static manifest JSON Schemas and unresolved diagnostics without leaking configuration expressions/defaults. Align generated DTO/controller/service code and docs with existing APIs and test generated HTTP requests. Wait for test-app readiness and restore environment after cleanup failures. Preserve HTTP 400 for DTO validation and correctly extract mixed primitive/DTO parameters.
+- a9e91a9: Repair Phase F audit boundaries: HTTP connection ownership and authentication, cancellation, atomic token reservations, allowlisted streaming tool execution, single-use durable approval decisions, privacy-safe audit/capture, live GenAI spans and shared DTO schema rules. See docs/migration/phase-f-audit-fixes.md for stricter store/auth contracts. This changeset has not been applied or published.
+- Updated dependencies [f0e9278]
+- Updated dependencies [f0e9278]
+- Updated dependencies [a9e91a9]
+- Updated dependencies [f0e9278]
+  - koatty_validation@5.0.0
+
 Reject hard-linked write targets; delimit formatter/linter paths; align static DTO required/conditional rules and explicitly record nested uncertainty; strengthen sandbox and schema regressions.
 
 Migration: `docs/migration/phase-a-f-review-fixes.md` in the monorepo. No release has been applied.
@@ -11,7 +44,6 @@ Migration: `docs/migration/phase-a-f-review-fixes.md` in the monorepo. No releas
 - E1 静态 DTO schema 使用 koatty_validation/schema-rules 共享约束，不执行目标应用；新增规则一致性回归。
 - 迁移说明：`docs/migration/phase-f-audit-fixes.md`（主仓库）。
 
-
 ## Unreleased — Phase E audit fixes (2026-09-29)
 
 - Bind MCP apply to issued, expiring single-use session plans and unchanged preimages; validate all inputs before transactional staging and handled-failure rollback.
@@ -20,12 +52,12 @@ Migration: `docs/migration/phase-a-f-review-fixes.md` in the monorepo. No releas
 - Generate compilable modules using existing APIs, split DTO files, declare actual dependencies, add service behaviour tests and standalone component test skeletons; use CLI ^5.0.0 in new projects.
 - Reuse manifest schemas for new API doc scripts. See docs/migration/phase-e-ai-dev-experience.md for DTO paths, plan lifecycle and static-analysis limits.
 
-
 ## 5.0.0
 
 ### Major Changes
 
 - Phase E（AI-Ready 开发体验，路线图 §8）：`koatty_cli@5.0.0` 发布内容。
+
   - **E-1 应用清单 `koatty manifest`**：静态采集器（`src/manifest`）+ CLI 命令，输出 components / routes / dtos / aspects / `config.keys` / `security.profile` / koatty 版本 / decoratorMode / protocols。**只输出配置键名，绝不输出配置取值**；纯静态分析（ts-morph），不启动应用、不监听端口、无网络。回归测试：`tests/regression/E-01.manifest.test.ts`。
   - **E-2 MCP 形态的 CLI（`koatty mcp`）**：stdio 传输的 MCP server，7 个工具（`koatty_manifest` / `koatty_routes` / `koatty_explain_component` / `koatty_plan` / `koatty_apply` / `koatty_test` / `koatty_docs`）。
     - 只读优先：除写类 `koatty_apply` 和执行类 `koatty_test` 外使用 `readOnlyHint`；`koatty_apply` 必须携带 `koatty_plan` 的 SHA-256 哈希，`dryRun` 默认 `true`。
@@ -61,6 +93,7 @@ Migration: `docs/migration/phase-a-f-review-fixes.md` in the monorepo. No releas
 ### Patch Changes
 
 - Phase A（基线修复与 CI 可信）收口：修复让 `pnpm lint` / CI lint job 失败的配置与格式问题。
+
   - `koatty_cli`：按 prettier 重新格式化 `apply` 命令的 `--yes` 选项（`npx eslint --fix`，无行为变化）；
   - `koatty_graphql`、`koatty_loader`：`@typescript-eslint/ban-types` 已在 @typescript-eslint v8 中移除，配置仍引用该规则会让每次 lint 直接报
     `Definition for rule '@typescript-eslint/ban-types' was not found`；改用后继规则 `@typescript-eslint/no-unsafe-function-type`；
@@ -76,6 +109,7 @@ Migration: `docs/migration/phase-a-f-review-fixes.md` in the monorepo. No releas
 - Phase B security hardening (koatty-hardening-and-ai-evolution-plan.md, ADR-101/102/103). Fail-closed defaults with a `security.legacyDefaults: true` rollback switch; see docs/migration/4.3.0.md for the full migration guide.
 
   Highlights:
+
   - SecurityProfile (strict/standard/development) exposed read-only as `app.security`, with a startup summary and per-item WARN when rolling back
   - body parsing failures return 400/413/415 instead of silently producing `{}`; body size limit follows the security profile (1mb in production)
   - DTO validation whitelist on by default (strict profile rejects unknown fields); `__proto__`/`constructor` keys never reach DTO instances
