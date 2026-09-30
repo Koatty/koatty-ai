@@ -4,6 +4,7 @@ import { ModuleGenerator } from '../generators/ModuleGenerator';
 import { ensureDocScriptInPackageJson } from '../generators/PackageJsonDocGenerator';
 import { SpecParser } from '../parser/SpecParser';
 import { Validator } from '../runner/Validator';
+import { planProtocolConfig } from '../utils/serverConfigPatcher';
 import { FieldParser } from '../parser/FieldParser';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -165,6 +166,17 @@ export class GeneratorPipeline {
     // Step 3: Ensure package.json has "doc" script for Typia API documentation
     ensureDocScriptInPackageJson(this.changeset, this.workingDirectory);
 
+    const protocol = this.spec.api?.type;
+    if (protocol === 'grpc' || protocol === 'graphql') {
+      const content = planProtocolConfig(this.workingDirectory, protocol);
+      if (content !== undefined)
+        this.changeset.modifyFile(
+          'src/config/server.ts',
+          content,
+          fs.readFileSync(path.join(this.workingDirectory, 'src/config/server.ts'), 'utf8'),
+          'Configure protocol'
+        );
+    }
     return this.changeset;
   }
 

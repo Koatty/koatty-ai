@@ -18,7 +18,7 @@ test('actual stdio server enforces plan provenance and safe apply', async () => 
   const call = async (name: string, args: any) => client.callTool({ name, arguments: args });
   try {
     await client.connect(transport);
-    expect((await client.listTools()).tools).toHaveLength(7);
+    expect((await client.listTools()).tools).toHaveLength(10);
     const changeset: any = {
       module: 'unissued',
       changes: [{ type: 'create', path: 'unissued.txt', content: 'no' }],

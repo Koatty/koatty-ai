@@ -12,16 +12,26 @@
  * @License MIT
  */
 import Ajv from 'ajv';
-import * as crypto from 'crypto';
+import { version } from '../../package.json';
+import { queryManifest, ManifestQuery } from '../operations/inspect';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execFile } from 'child_process';
 import { collectManifest, validateManifest, KoattyManifest } from '../manifest';
 import { GeneratorPipeline } from '../pipeline/GeneratorPipeline';
 import { SpecParser } from '../parser/SpecParser';
-import { applyTransaction, snapshotFile } from './transaction';
+import {
+  applyPlan,
+  preparePlan,
+  DevelopmentPlan,
+  hashChangeSet,
+  parseChangeSet,
+} from '../operations/plans';
+export { hashChangeSet } from '../operations/plans';
+import { capabilities, doctor } from '../operations/discover';
+import { diagnostic, OperationError, operationResultSchema, result } from '../operations/result';
+import { runCheck, verifyProject, CheckName } from '../operations/verify';
 import { resolveInside } from '../utils/sandbox';
-import { ChangeSetInfo, FileChangeInfo } from '../types/changeset';
+import { ChangeSetInfo } from '../types/changeset';
 
 export interface McpToolDefinition {
   name: string;
@@ -32,6 +42,7 @@ export interface McpToolDefinition {
     required?: string[];
     additionalProperties?: boolean;
   };
+  outputSchema?: Record<string, unknown>;
   annotations?: {
     readOnlyHint?: boolean;
     destructiveHint?: boolean;
@@ -42,6 +53,8 @@ export interface McpToolDefinition {
 export interface McpToolContext {
   /** Project root; every path argument is resolved and validated against it. */
   root: string;
+  signal?: AbortSignal;
+  session?: object;
 }
 
 export interface McpToolResult {
@@ -53,17 +66,7 @@ export interface McpToolResult {
 
 type ToolArgs = Record<string, unknown>;
 // Context identity is the MCP connection; never accept a plan supplied by another connection.
-const issuedPlans = new WeakMap<
-  McpToolContext,
-  Map<
-    string,
-    {
-      root: string;
-      expires: number;
-      before: Array<ReturnType<typeof snapshotFile>>;
-    }
-  >
->();
+const issuedPlans = new WeakMap<object, Map<string, DevelopmentPlan>>();
 
 const READ_ONLY = { readOnlyHint: true, idempotentHint: true } as const;
 
@@ -72,11 +75,51 @@ const TEST_DIR_PATTERN = /^(test|tests)\//;
 
 export const MCP_TOOLS: McpToolDefinition[] = [
   {
+    name: 'koatty_capabilities',
+    description: 'Discover supported development contracts and boundaries.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: READ_ONLY,
+  },
+  {
+    name: 'koatty_doctor',
+    description:
+      'Diagnose installed project dependencies and static contracts without starting the app.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: READ_ONLY,
+  },
+  {
+    name: 'koatty_verify',
+    description: 'Run project checks without installing tools. Executes trusted project code.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        checks: {
+          type: 'array',
+          minItems: 1,
+          items: { enum: ['types', 'test', 'lint', 'manifest'] },
+        },
+        file: { type: 'string' },
+        timeoutMs: { type: 'integer', minimum: 1, maximum: 600000 },
+      },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+  },
+  {
     name: 'koatty_manifest',
     description:
       'Return the application manifest (components, routes, DTOs, aspects, config key names). ' +
       'Config values are never included.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        section: { enum: ['components', 'routes', 'tools', 'resources', 'prompts'] },
+        name: { type: 'string' },
+        offset: { type: 'integer', minimum: 0 },
+        limit: { type: 'integer', minimum: 1, maximum: 200 },
+      },
+      additionalProperties: false,
+    },
     annotations: READ_ONLY,
   },
   {
@@ -163,6 +206,10 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       type: 'object',
       properties: {
         topic: { type: 'string', description: 'Case-insensitive search term' },
+        scope: {
+          enum: ['project', 'framework'],
+          description: 'Search project docs or the versioned bundled framework skill',
+        },
         limit: { type: 'number', description: 'Maximum matches (default 5, max 20)' },
       },
       required: ['topic'],
@@ -209,21 +256,6 @@ function relativeInside(root: string, target: string): string {
   return toPosix(path.relative(root, resolveInside(root, target)));
 }
 
-/** Deterministic hash over the parts of a changeset that koatty_apply consumes. */
-export function hashChangeSet(info: ChangeSetInfo): string {
-  const canonical = {
-    id: info.id,
-    timestamp: info.timestamp,
-    module: info.module,
-    changes: (info.changes ?? []).map((change) => ({
-      type: change.type,
-      path: toPosix(change.path),
-      content: change.content ?? null,
-    })),
-  };
-  return crypto.createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
-}
-
 function describeChanges(info: ChangeSetInfo): string[] {
   return (info.changes ?? []).map((change) => `${change.type} ${toPosix(change.path)}`);
 }
@@ -242,8 +274,8 @@ function loadManifest(ctx: McpToolContext): KoattyManifest {
   return manifest;
 }
 
-function toolManifest(_args: ToolArgs, ctx: McpToolContext): unknown {
-  return loadManifest(ctx);
+function toolManifest(args: ToolArgs, ctx: McpToolContext): unknown {
+  return queryManifest(loadManifest(ctx), args as ManifestQuery);
 }
 
 function toolRoutes(args: ToolArgs, ctx: McpToolContext): unknown {
@@ -276,6 +308,11 @@ function toolExplainComponent(args: ToolArgs, ctx: McpToolContext): unknown {
 
   return {
     component,
+    mcp: {
+      tools: manifest.mcp?.tools.filter((tool) => tool.component === id) ?? [],
+      resources: manifest.mcp?.resources.filter((item) => item.component === id) ?? [],
+      prompts: manifest.mcp?.prompts.filter((item) => item.component === id) ?? [],
+    },
     dependents: manifest.components.filter((c) => c.dependsOn.includes(id)).map((c) => c.id),
     aspects: manifest.aspects.filter((aspect) =>
       aspect.targets.some((target) => target === id || target.startsWith(`${id}.`))
@@ -308,16 +345,15 @@ async function toolPlan(args: ToolArgs, ctx: McpToolContext): Promise<unknown> {
   const info = changeset.toJSON();
   parseChangeSet(info);
   const hash = hashChangeSet(info);
-  const root = fs.realpathSync(ctx.root);
-  const before = info.changes.map((change) => snapshotFile(root, change.path));
-  let plans = issuedPlans.get(ctx);
+  const plan = preparePlan(ctx.root, info);
+  let plans = issuedPlans.get(ctx.session ?? ctx);
   if (!plans) {
     plans = new Map();
-    issuedPlans.set(ctx, plans);
+    issuedPlans.set(ctx.session ?? ctx, plans);
   }
-  for (const [key, plan] of plans) if (plan.expires < Date.now()) plans.delete(key);
+  for (const [key, item] of plans) if (item.expires < Date.now()) plans.delete(key);
   if (plans.size >= 32) plans.delete(plans.keys().next().value!);
-  plans.set(hash, { root, before, expires: Date.now() + 10 * 60 * 1000 });
+  plans.set(hash, plan);
 
   return {
     module: info.module,
@@ -328,49 +364,13 @@ async function toolPlan(args: ToolArgs, ctx: McpToolContext): Promise<unknown> {
   };
 }
 
-function parseChangeSet(raw: unknown): ChangeSetInfo {
-  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-  const info = parsed as ChangeSetInfo;
-  if (
-    !info ||
-    typeof info !== 'object' ||
-    !Array.isArray(info.changes) ||
-    typeof info.module !== 'string'
-  ) {
-    throw new Error('Invalid changeset: expected { module, changes: [...] }');
-  }
-  for (const change of info.changes as FileChangeInfo[]) {
-    if (
-      !change ||
-      (change.type !== 'create' && change.type !== 'modify' && change.type !== 'delete')
-    ) {
-      throw new Error(`Unsupported change type: ${String(change?.type)}`);
-    }
-    if (typeof change.path !== 'string' || !change.path.trim()) {
-      throw new Error('Invalid changeset: every change needs a path');
-    }
-  }
-  const paths = new Set<string>();
-  for (const change of info.changes) {
-    if (change.type !== 'delete' && typeof change.content !== 'string') {
-      throw new Error('Invalid changeset: create/modify content must be a string');
-    }
-    if (change.content !== undefined && typeof change.content !== 'string') {
-      throw new Error('Invalid changeset content');
-    }
-    const normalized = path.normalize(change.path);
-    if (paths.has(normalized)) throw new Error('Duplicate changeset path');
-    paths.add(normalized);
-  }
-  return info;
-}
-
 function toolApply(args: ToolArgs, ctx: McpToolContext): unknown {
   const info = parseChangeSet(args.changeset);
   const expected = asString(args, 'hash', true)!;
   const actual = hashChangeSet(info);
   if (actual !== expected) {
-    throw new Error(
+    throw new OperationError(
+      'PLAN_TAMPERED',
       `Changeset hash mismatch: apply the unmodified koatty_plan output (expected ${expected}, got ${actual})`
     );
   }
@@ -379,54 +379,19 @@ function toolApply(args: ToolArgs, ctx: McpToolContext): unknown {
     throw new Error('dryRun must be a boolean');
   }
   const root = fs.realpathSync(ctx.root);
-  const plans = issuedPlans.get(ctx);
+  const plans = issuedPlans.get(ctx.session ?? ctx);
   const plan = plans?.get(expected);
   if (!plan || plan.root !== root || plan.expires < Date.now()) {
-    throw new Error(
+    throw new OperationError(
+      'PLAN_NOT_ISSUED',
       'Plan was not issued by this session, expired or was already applied; run koatty_plan again'
     );
   }
   const dryRun = args.dryRun !== false;
-  // Check all preimages even for preview, and again at the transaction boundary.
-  for (let i = 0; i < info.changes.length; i++) {
-    if (snapshotFile(root, info.changes[i].path).digest !== plan.before[i].digest) {
-      throw new Error('Project changed since plan; run koatty_plan again');
-    }
-  }
-  if (dryRun) return { dryRun: true, module: info.module, changes: describeChanges(info) };
+  const preview = applyPlan(root, plan, true);
+  if (dryRun) return preview;
   plans!.delete(expected);
-  applyTransaction(root, info.changes, plan.before);
-  return { dryRun: false, module: info.module, written: info.changes.map((c) => toPosix(c.path)) };
-}
-
-function tail(text: string, max = 4000): string {
-  return text.length > max ? text.slice(text.length - max) : text;
-}
-
-function runJest(
-  root: string,
-  relativeFile: string,
-  timeoutMs: number
-): Promise<Record<string, unknown>> {
-  return new Promise((resolve) => {
-    execFile(
-      'npx',
-      ['jest', '--runTestsByPath', relativeFile, '--ci'],
-      { cwd: root, timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 },
-      (error, stdout, stderr) => {
-        const failure = error as (Error & { code?: number | string; killed?: boolean }) | null;
-        resolve({
-          file: relativeFile,
-          passed: !error,
-          exitCode: error ? (typeof failure?.code === 'number' ? failure.code : 1) : 0,
-          timedOut: Boolean(failure?.killed),
-          timeoutMs,
-          stdout: tail(stdout ?? ''),
-          stderr: tail(stderr ?? ''),
-        });
-      }
-    );
-  });
+  return applyPlan(root, plan, false);
 }
 
 async function toolTest(args: ToolArgs, ctx: McpToolContext): Promise<unknown> {
@@ -438,12 +403,12 @@ async function toolTest(args: ToolArgs, ctx: McpToolContext): Promise<unknown> {
     );
   }
   const timeoutMs = asNumber(args, 'timeoutMs', 60000, 1, 600000);
-  return runJest(ctx.root, relative, timeoutMs);
+  const check = await runCheck(ctx.root, 'test', { file: relative, timeoutMs, signal: ctx.signal });
+  return { file: relative, ...check, timeoutMs };
 }
 
-function listDocs(root: string): string[] {
+function listDocs(root: string, roots = ['docs', 'README.md', 'llms.txt']): string[] {
   const files: string[] = [];
-  const roots = ['docs', 'README.md', 'llms.txt'];
   const walk = (target: string, depth: number): void => {
     if (depth > 4 || files.length > 500) return;
     let stat: fs.Stats;
@@ -472,13 +437,19 @@ function toolDocs(args: ToolArgs, ctx: McpToolContext): unknown {
   const limit = asNumber(args, 'limit', 5, 1, 20);
   const matches: Array<{ file: string; line: number; text: string }> = [];
 
-  for (const file of listDocs(ctx.root)) {
+  const source = args.scope === 'framework' ? 'framework' : 'project';
+  const docsRoot =
+    source === 'framework' ? path.resolve(__dirname, '../../skills/koatty') : ctx.root;
+  for (const file of listDocs(
+    docsRoot,
+    source === 'framework' ? ['SKILL.md', 'references'] : undefined
+  )) {
     if (matches.length >= limit) break;
-    const lines = fs.readFileSync(resolveInside(ctx.root, file), 'utf8').split(/\r?\n/);
+    const lines = fs.readFileSync(resolveInside(docsRoot, file), 'utf8').split(/\r?\n/);
     for (let index = 0; index < lines.length; index++) {
       if (!lines[index].toLowerCase().includes(topic)) continue;
       matches.push({
-        file: toPosix(path.relative(ctx.root, file)),
+        file: toPosix(path.relative(docsRoot, file)),
         line: index + 1,
         text: lines[index].trim().slice(0, 300),
       });
@@ -486,13 +457,28 @@ function toolDocs(args: ToolArgs, ctx: McpToolContext): unknown {
     }
   }
 
-  return { topic, matched: matches.length, matches };
+  return {
+    topic,
+    source,
+    ...(source === 'framework' ? { cliVersion: version } : {}),
+    matched: matches.length,
+    matches,
+  };
 }
 
 const HANDLERS: Record<
   string,
   (args: ToolArgs, ctx: McpToolContext) => unknown | Promise<unknown>
 > = {
+  koatty_capabilities: () => capabilities(),
+  koatty_doctor: (_args, ctx) => doctor(ctx.root),
+  koatty_verify: (args, ctx) =>
+    verifyProject(ctx.root, {
+      checks: args.checks as CheckName[] | undefined,
+      file: args.file as string | undefined,
+      timeoutMs: args.timeoutMs as number | undefined,
+      signal: ctx.signal,
+    }),
   koatty_manifest: toolManifest,
   koatty_routes: toolRoutes,
   koatty_explain_component: toolExplainComponent,
@@ -502,8 +488,9 @@ const HANDLERS: Record<
   koatty_docs: toolDocs,
 };
 
+const validateOutput = new Ajv({ strict: false }).compile(operationResultSchema);
 export function listTools(): McpToolDefinition[] {
-  return MCP_TOOLS.map((tool) => ({ ...tool }));
+  return MCP_TOOLS.map((tool) => ({ ...tool, outputSchema: operationResultSchema }));
 }
 
 export async function callTool(
@@ -512,12 +499,43 @@ export async function callTool(
   ctx: McpToolContext
 ): Promise<McpToolResult> {
   const handler = HANDLERS[name];
-  if (!handler) throw new Error(`Unknown tool: ${name}`);
+  if (!handler) throw new OperationError('UNKNOWN_TOOL', `Unknown tool: ${name}`);
   const validate = inputValidators.get(name)!;
   if (!validate(args ?? {}))
-    throw new Error(`Invalid tool arguments: ${JSON.stringify(validate.errors)}`);
+    throw new OperationError(
+      'INVALID_ARGUMENT',
+      `Invalid tool arguments: ${JSON.stringify(validate.errors)}`
+    );
   const data = await handler(args ?? {}, ctx);
-  return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  const failed =
+    !!data &&
+    typeof data === 'object' &&
+    (('passed' in data && (data as any).passed === false) ||
+      ('status' in data && ['failed', 'cancelled'].includes((data as any).status)));
+  const envelope =
+    (data as any)?.schemaVersion === 1 && (data as any)?.operation && (data as any)?.status
+      ? data
+      : result(
+          name.replace(/^koatty_/, ''),
+          failed
+            ? 'failed'
+            : name === 'koatty_plan' || (data as any)?.dryRun
+              ? 'preview'
+              : name === 'koatty_apply'
+                ? 'applied'
+                : 'completed',
+          data
+        );
+  if (!validateOutput(envelope))
+    throw new OperationError(
+      'OUTPUT_CONTRACT_INVALID',
+      'Tool result violates the operation result contract'
+    );
+  return {
+    content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+    structuredContent: envelope,
+    ...(failed ? { isError: true } : {}),
+  };
 }
 
 /** MCP-facing wrapper: tool failures are reported as `isError` results, not exceptions. */
@@ -531,6 +549,7 @@ export async function callToolSafe(
   } catch (error) {
     return {
       content: [{ type: 'text', text: `Error: ${(error as Error).message}` }],
+      structuredContent: result(name.replace(/^koatty_/, ''), 'failed', null, [diagnostic(error)]),
       isError: true,
     };
   }

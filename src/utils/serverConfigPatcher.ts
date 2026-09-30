@@ -17,28 +17,28 @@ const PROTOCOL_MAP: Record<string, string> = {
  * 在 config/server.ts 的 protocol 中增加指定协议
  * 仅 grpc、graphql、websocket(ws) 需要处理
  */
-export function addProtocolToServerConfig(cwd: string, protocolType: string): boolean {
+export function planProtocolConfig(cwd: string, protocolType: string): string | undefined {
   const normalized = PROTOCOL_MAP[protocolType?.toLowerCase()] ?? protocolType?.toLowerCase();
   if (!['grpc', 'graphql', 'ws'].includes(normalized)) {
-    return false;
+    return undefined;
   }
 
   const serverPath = resolveInside(cwd, path.join(cwd, 'src/config/server.ts'));
   if (!fs.existsSync(serverPath)) {
-    return false;
+    return undefined;
   }
 
   let content = fs.readFileSync(serverPath, 'utf-8');
 
   // 检查是否已包含该协议
   if (content.includes(`'${normalized}'`) || content.includes(`"${normalized}"`)) {
-    return false;
+    return undefined;
   }
 
   // 解析 protocol 字段：可能是 protocol: "http" 或 protocol: ["http"]
   const protocolMatch = content.match(/protocol:\s*(\[[\s\S]*?\]|["'][^"']*["'])/);
   if (!protocolMatch) {
-    return false;
+    return undefined;
   }
 
   const orig = protocolMatch[1].trim();
@@ -51,7 +51,7 @@ export function addProtocolToServerConfig(cwd: string, protocolType: string): bo
       .split(',')
       .map((s) => s.trim().replace(/^["']|["']$/g, ''))
       .filter(Boolean);
-    if (arr.includes(normalized)) return false;
+    if (arr.includes(normalized)) return undefined;
     arr.push(normalized);
     newProtocol = `[${arr.map((p) => `"${p}"`).join(', ')}]`;
   } else {
@@ -65,6 +65,12 @@ export function addProtocolToServerConfig(cwd: string, protocolType: string): bo
     /protocol:\s*(\[[\s\S]*?\]|["'][^"']*["'])/,
     `protocol: ${newProtocol}`
   );
-  writeInside(cwd, serverPath, content);
+  return content;
+}
+
+export function addProtocolToServerConfig(cwd: string, protocolType: string): boolean {
+  const content = planProtocolConfig(cwd, protocolType);
+  if (content === undefined) return false;
+  writeInside(cwd, 'src/config/server.ts', content);
   return true;
 }

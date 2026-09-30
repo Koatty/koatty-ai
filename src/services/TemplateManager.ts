@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as https from 'https';
+import { createHash } from 'crypto';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as Handlebars from 'handlebars';
@@ -230,6 +231,47 @@ export class TemplateManager {
     // 3. 从远程下载到缓存目录
     await this.downloadTemplate(type);
     return cachePath;
+  }
+
+  /** Reproducible selection for automation; no cache precedence unless requested. */
+  public async resolveTemplate(
+    type: TemplateType,
+    options: {
+      source?: 'bundled' | 'cache';
+      offline?: boolean;
+      digest?: string;
+    } = {}
+  ): Promise<{ directory: string; source: string; sha256: string }> {
+    const source = options.source ?? 'bundled';
+    if (!['bundled', 'cache'].includes(source))
+      throw new Error('Template source must be bundled or cache');
+    const directory = source === 'bundled' ? this.getSubmodulePath(type) : this.getCachePath(type);
+    if (!this.isValidTemplateDir(directory)) {
+      if (options.offline || source === 'bundled')
+        throw new Error(
+          'Selected template is unavailable; install the complete CLI or explicitly update the cache'
+        );
+      await this.downloadTemplate(type);
+    }
+    const hash = createHash('sha256');
+    const walk = (dir: string) => {
+      for (const name of fs.readdirSync(dir).sort()) {
+        if (name === '.git' || name === 'node_modules') continue;
+        const file = path.join(dir, name);
+        const stat = fs.lstatSync(file);
+        if (stat.isSymbolicLink()) throw new Error('Template symlinks are forbidden');
+        if (stat.isDirectory()) walk(file);
+        else if (stat.isFile())
+          hash
+            .update(path.relative(directory, file).split(path.sep).join('/') + '\0')
+            .update(createHash('sha256').update(fs.readFileSync(file)).digest());
+      }
+    };
+    walk(directory);
+    const sha256 = hash.digest('hex');
+    if (options.digest && options.digest !== sha256)
+      throw new Error('Template digest mismatch; do not silently regenerate from another revision');
+    return { directory, source, sha256 };
   }
 
   /**

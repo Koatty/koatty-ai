@@ -166,6 +166,35 @@ const object = (properties: JsonSchema, required = Object.keys(properties)): Jso
   required,
   additionalProperties: false,
 });
+function mcpEntrySchema(): JsonSchema {
+  return object(
+    {
+      kind: { enum: ['tool', 'resource', 'prompt'] },
+      name: str,
+      component: str,
+      handler: str,
+      file: str,
+      line: { type: 'integer', minimum: 1 },
+      description: { type: 'string' },
+      scopes: strings,
+      requireApproval: { type: 'boolean' },
+      annotations: { type: 'object' },
+      uri: str,
+      mimeType: str,
+      arguments: {
+        type: 'array',
+        items: object(
+          { name: str, description: { type: 'string' }, required: { type: 'boolean' } },
+          ['name']
+        ),
+      },
+      inputSchema: { type: 'object' },
+      outputSchema: { type: 'object' },
+      dto: str,
+    },
+    ['kind', 'name', 'component', 'handler', 'file', 'line']
+  );
+}
 /** Published structural contract; nested DTO/config schemas are validated against draft-07 too. */
 export const manifestSchema = object(
   {
@@ -221,6 +250,14 @@ export const manifestSchema = object(
       schemaSource: { enum: ['declaration', 'inferred'] },
     }),
     security: object({ profile: { enum: ['development', 'standard', 'strict'] } }, []),
+    mcp: object({
+      schemaVersion: { const: 1 },
+      source: { const: 'static' },
+      coverage: { enum: ['complete', 'partial'] },
+      tools: { type: 'array', items: mcpEntrySchema() },
+      resources: { type: 'array', items: mcpEntrySchema() },
+      prompts: { type: 'array', items: mcpEntrySchema() },
+    }),
     runtime: object({
       version: { const: 1 },
       root: { type: 'string' },
@@ -254,6 +291,13 @@ export function checkManifest(value: unknown): string[] {
   for (const [name, schema] of Object.entries({
     config: m.config.schema,
     ...Object.fromEntries(Object.entries(m.dtos).map(([k, v]) => [k, (v as any).schema])),
+    ...Object.fromEntries(
+      (m.mcp?.tools ?? []).flatMap((tool: any) =>
+        ['inputSchema', 'outputSchema']
+          .filter((key) => tool[key])
+          .map((key) => [`mcp.${tool.name}.${key}`, tool[key]])
+      )
+    ),
   })) {
     try {
       if (!ajv.validateSchema(schema)) errors.push(`${name}: invalid JSON Schema`);

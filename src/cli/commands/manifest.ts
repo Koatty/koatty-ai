@@ -1,3 +1,4 @@
+import { queryManifest, ManifestQuery } from '../../operations/inspect';
 import { Command } from 'commander';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -10,6 +11,10 @@ interface ManifestCommandOptions {
   validate?: boolean;
   protocols?: string;
   runtimeDir?: string;
+  section?: ManifestQuery['section'];
+  name?: string;
+  offset?: string;
+  limit?: string;
 }
 
 /**
@@ -33,6 +38,10 @@ export function registerManifestCommand(program: Command) {
       '--runtime-dir <path>',
       'Include compiled files for production startup (run after build)'
     )
+    .option('--section <name>', 'Query components|routes|tools|resources|prompts')
+    .option('--name <text>', 'Filter a section by name/path')
+    .option('--offset <n>', 'Section offset')
+    .option('--limit <n>', 'Section limit (1..200, default 50)')
     .option('--validate', 'Validate the generated manifest and exit non-zero on problems')
     .action(async (options: ManifestCommandOptions) => {
       try {
@@ -68,10 +77,18 @@ export function registerManifestCommand(program: Command) {
           console.error('Manifest is valid.');
         }
 
+        const data = queryManifest(manifestData, {
+          section: options.section,
+          name: options.name,
+          offset: options.offset === undefined ? undefined : Number(options.offset),
+          limit: options.limit === undefined ? undefined : Number(options.limit),
+        });
+        if (options.section && format !== 'json')
+          throw new Error('Section queries require JSON format');
         const output =
           format === 'md'
             ? renderManifestMarkdown(manifestData)
-            : `${JSON.stringify(manifestData, null, 2)}\n`;
+            : `${JSON.stringify(data, null, 2)}\n`;
 
         if (options.out) {
           const outPath = path.resolve(process.cwd(), options.out);

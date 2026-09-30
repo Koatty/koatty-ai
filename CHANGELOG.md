@@ -1,3 +1,8 @@
+## Unreleased — AI development / Phase G (2026-09-30)
+
+- 新增共享开发操作、结构化结果、doctor/capabilities/verify、签名持久化计划、MCP 清单与分页查询、离线固定模板、MCP/Agent 工程和随包 Skill。统一生成写入事务；新文件冲突拒绝覆盖；校验失败返回非零且明确已写入文件。默认模板改用 Koatty 5，测试实际启动应用。
+- 迁移说明：`docs/migration/phase-g-ai-development.md`（主仓库）。尚未发布。
+
 ## Unreleased — Phase A–F review (2026-09-30)
 
 ## 5.1.0

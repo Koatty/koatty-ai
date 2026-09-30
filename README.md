@@ -707,3 +707,19 @@ BSD-3-Clause
 ---
 
 Made with ❤️ by the Koatty community
+
+## AI development workflow (unreleased)
+
+Use `koatty capabilities --json` and `koatty doctor --json` to discover the installed contract.
+`plan --spec <file> --save-plan --json` produces a reviewable, project-bound plan;
+`apply --plan <returned-id> --yes --json` applies it once. Check its status and run
+`verify --checks types,test --json`. Verification uses installed tools and never installs dependencies.
+
+`new <name> --template mcp|agent --offline --json` creates protocol-tested starter applications.
+Bundled templates are the default; cache use is explicit. Generated applications include
+`.agents/skills/koatty/`. The maintained Agent skill is [skills/koatty/SKILL.md](skills/koatty/SKILL.md).
+Development MCP exposes the same plan/application operations plus capability, diagnostic and verification tools;
+`koatty_docs` with `scope: framework` searches the bundled versioned skill.
+`manifest --section tools --limit 20` provides bounded static discovery; unresolved declarations remain explicit.
+
+See the monorepo migration guide `docs/migration/phase-g-ai-development.md` for changed defaults and acceptance boundaries.

@@ -41,8 +41,8 @@ export class GitService {
   /**
    * Add all files and commit with a message.
    */
-  async commit(message: string): Promise<void> {
-    await this.git.add('.');
+  async commit(message: string, files?: string[]): Promise<void> {
+    await this.git.add(files ? ['--', ...files] : '.');
     await this.git.commit(message);
   }
 

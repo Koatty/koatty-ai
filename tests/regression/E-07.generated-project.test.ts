@@ -49,6 +49,7 @@ test('generated project compiles, runs service tests, and rejects invalid POST D
     for (const [name, dir] of Object.entries({
       koatty: 'koatty',
       koatty_validation: 'koatty-validation',
+      koatty_testing: 'koatty-testing',
     }))
       link(name, path.join(repo, 'packages', dir));
     for (const name of ['class-validator'])
@@ -90,7 +91,7 @@ test('generated project compiles, runs service tests, and rejects invalid POST D
     expect(openapi.components.schemas.CreateArticleDto.properties.name.minLength).toBe(1);
     expect(openapi.paths['/article'].post.requestBody).toBeDefined();
     const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-    expect(pkg.devDependencies.koatty_cli).toBe('^5.0.0');
+    expect(pkg.devDependencies.koatty_cli).toBe('^5.1.0');
     expect(pkg.dependencies.typeorm).toBeDefined();
     expect(pkg.dependencies['class-validator']).toBeDefined();
     const script = `

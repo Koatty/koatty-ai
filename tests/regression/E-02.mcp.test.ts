@@ -124,6 +124,9 @@ describe('E-02: koatty mcp', () => {
     expect(names).toEqual(
       [
         'koatty_apply',
+        'koatty_capabilities',
+        'koatty_doctor',
+        'koatty_verify',
         'koatty_docs',
         'koatty_explain_component',
         'koatty_manifest',

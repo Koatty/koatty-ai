@@ -1,0 +1,73 @@
+import 'reflect-metadata';
+import { Koatty } from 'koatty_core';
+import { Container } from 'koatty_container';
+import { createMcpHost, createMcpHttpAdapter, createApiKeyAuth } from 'koatty_mcp';
+import type { ApprovalService } from 'koatty_mcp';
+import { GreetingService } from './service/GreetingService';
+import { GreetingTools } from './tools/GreetingTools';
+{{#if agent}}
+import { createLlmClient, type LlmProvider } from 'koatty_llm';
+import { streamSSE } from 'koatty_router';
+{{/if}}
+class Application extends Koatty { constructor() { super(); } }
+
+/** Inject an approval backend for writes. No backend means write tools fail closed. */
+export function createApplication(options: { keys: Record<string, string[]>; approval?: ApprovalService; {{#if agent}}provider: LlmProvider; model: string;{{/if}} }) {
+  if (!Object.keys(options.keys).length) throw new Error('Configure at least one MCP credential');
+  const app = new Application();
+  const container = new Container();
+  app.container = container; container.setApp(app as any);
+  // This explicit composition does not load the Router response middleware.
+  app.use(async (ctx: any, next: () => Promise<any>) => {
+    try { await next(); }
+    catch { if (!ctx.res.headersSent) { ctx.status = 500; ctx.body = { error: 'request_failed' }; } }
+    if (ctx.respond !== false && !ctx.res.writableEnded && !ctx.res.destroyed) {
+      ctx.res.statusCode = ctx.status;
+      ctx.res.setHeader('Content-Type', 'application/json');
+      ctx.res.end(JSON.stringify(ctx.body ?? { error: 'not_found' }));
+    }
+  });
+  container.reg('GreetingService', GreetingService, { type: 'SERVICE' } as any);
+  container.reg('GreetingTools', GreetingTools, { type: 'SERVICE' } as any);
+  const host = createMcpHost({ app, security: { strict: true, auth: createApiKeyAuth({ keys: options.keys }) },
+    approval: options.approval, serverName: '{{projectName}}', serverVersion: '1.0.0' });
+  const mcp = createMcpHttpAdapter({ host, enableJsonResponse: true });
+  app.use(mcp.middleware);
+{{#if agent}}
+  const llm = createLlmClient({ providers: [options.provider], routes: {
+    default: { model: 'default', provider: options.provider.name, providerModel: options.model },
+  }, maxToolRounds: 3 });
+  app.use(async (ctx: any, next: () => Promise<any>) => {
+    if (ctx.path !== '/ask' || ctx.method !== 'POST') return next();
+    let principal;
+    try { principal = await host.resolveIdentity({ headers: ctx.headers, transport: 'http' }); }
+    catch { ctx.status = 401; ctx.body = { error: 'unauthorized' }; return; }
+    const parts: Buffer[] = []; let size = 0;
+    for await (const chunk of ctx.req) {
+      size += chunk.length;
+      if (size > 8192) { ctx.status = 413; ctx.body = { error: 'payload_too_large' }; return; }
+      parts.push(chunk);
+    }
+    let input: any;
+    try { input = JSON.parse(Buffer.concat(parts).toString()); }
+    catch { ctx.status = 400; ctx.body = { error: 'invalid_json' }; return; }
+    if (typeof input?.question !== 'string' || !input.question.trim() || input.question.length > 2000) {
+      ctx.status = 400; ctx.body = { error: 'invalid_question' }; return;
+    }
+    await streamSSE(ctx, async function* (signal) {
+      try {
+        for await (const chunk of llm.streamWithTools({ messages: [{ role: 'user', content: input.question }],
+          signal, registry: host.registry, tools: ['greeting_read'], maxRounds: 3,
+          invoke: (name, args, hooks) => host.callTool(name, args, {
+            principal, headers: {}, sessionId: 'agent', requestId: ctx.requestId ?? 'ask',
+          }, hooks),
+        })) yield { event: chunk.type, data: chunk };
+      } catch { if (!signal.aborted) yield { event: 'error', data: { code: 'agent_failed' } }; }
+    });
+  });
+{{/if}}
+  app.use(async (ctx: any) => {
+    if (ctx.path === '/healthz') { ctx.status = 200; ctx.body = { ready: true }; }
+  });
+  return { app, host, async close() { await mcp.close(); await app.stop(); } };
+}

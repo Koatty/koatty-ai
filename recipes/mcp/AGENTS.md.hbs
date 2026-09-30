@@ -1,0 +1,12 @@
+# {{projectName}}
+
+Read `.agents/skills/koatty/SKILL.md` when implementing Koatty behavior.
+
+- `src/App.ts` is the executable entry; it does not start when imported.
+- `src/application.ts` explicitly creates the Koatty app/container, registers Services and mounts business MCP{{#if agent}} plus the SSE Agent endpoint{{/if}}.
+- `src/tools/GreetingTools.ts` adapts protocol requests to `src/service/GreetingService.ts`. DTOs live in `src/dto` with matching class/file names.
+- `npm run build` compiles; `npm test` exercises real MCP SDK and loopback HTTP{{#if agent}}/SSE with a local mock provider{{/if}}. These tests do not establish production database/provider acceptance.
+- `MCP_API_KEYS` is required for startup. Configure secrets externally; never print their values. Write tools require an injected trusted ApprovalService and remain denied without it.
+- Greeting storage is a demonstration in-memory Service. Add application persistence and idempotency before using it for business writes.
+- Reuse `app.container`; do not modify global IOC. Keep business logic in Services and permissions in the actual invocation path.
+- `koatty mcp` is a development tool server. It is separate from this application's `/mcp` endpoint.

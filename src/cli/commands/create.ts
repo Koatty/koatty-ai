@@ -5,11 +5,12 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { resolveInside, writeInside } from '../../utils/sandbox';
+import { resolveInside } from '../../utils/sandbox';
 import { isKoattyApp } from '../../utils/koattyProject';
 import { TemplateLoader } from '../../generators/TemplateLoader';
-import { QualityService } from '../../utils/QualityService';
-import { addProtocolToServerConfig } from '../../utils/serverConfigPatcher';
+import { ChangeSet } from '../../changeset/ChangeSet';
+import { applyPlan, preparePlan } from '../../operations/plans';
+import { planProtocolConfig } from '../../utils/serverConfigPatcher';
 
 export type CreateModuleOptions = {
   type?: string; // controller: http|grpc|websocket|graphql; model: typeorm|thinkorm
@@ -162,6 +163,7 @@ export async function runCreateModule(
   const outPath = path.join(appPath, outDir, `${fileName}${ext}`);
 
   const written: string[] = [];
+  const changeset = new ChangeSet(name);
   const ctrlType = options?.type?.toLowerCase();
   const isGrpcController = moduleType === 'controller' && ctrlType === 'grpc';
   const overwriteOnExist = isGrpcController; // grpc controller 可重复执行以应用变更
@@ -182,10 +184,6 @@ export async function runCreateModule(
     opts?: { overwrite?: boolean; throwExists?: boolean }
   ): void {
     filePath = resolveInside(process.cwd(), filePath);
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
     if (fs.existsSync(filePath)) {
       if (opts?.throwExists) {
         console.error(`\n❌ 文件已存在: ${filePath}`);
@@ -196,7 +194,10 @@ export async function runCreateModule(
         return; // 跳过已存在
       }
     }
-    writeInside(process.cwd(), filePath, fileContent);
+    const relative = path.relative(process.cwd(), filePath);
+    if (fs.existsSync(filePath))
+      changeset.modifyFile(relative, fileContent, fs.readFileSync(filePath, 'utf8'));
+    else changeset.createFile(relative, fileContent);
     written.push(filePath);
   }
 
@@ -237,15 +238,21 @@ export async function runCreateModule(
     moduleType === 'controller' &&
     ['grpc', 'graphql', 'websocket', 'ws'].includes(ctrlType || '')
   ) {
-    const patched = addProtocolToServerConfig(process.cwd(), ctrlType || '');
-    if (patched) {
+    const patched = planProtocolConfig(process.cwd(), ctrlType || '');
+    if (patched !== undefined) {
+      const config = 'src/config/server.ts';
+      changeset.modifyFile(
+        config,
+        patched,
+        fs.readFileSync(resolveInside(process.cwd(), config), 'utf8')
+      );
       written.push(path.join(process.cwd(), 'src/config/server.ts'));
       console.log('\n📄 已更新 src/config/server.ts，已添加 protocol');
     }
   }
 
   if (written.length > 0) {
-    QualityService.formatFiles(written);
+    applyPlan(process.cwd(), preparePlan(process.cwd(), changeset.toJSON()), false);
     console.log(`创建成功: ${written.join(', ')}`);
     const className = path.basename(outPath, path.extname(outPath));
     if (moduleType === 'middleware') {

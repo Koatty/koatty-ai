@@ -4,7 +4,8 @@ import { ChangeSetFormatter } from '../../changeset/ChangeSetFormatter';
 import { createReadlineInterface, promptForModule } from '../utils/prompt';
 import { Spec } from '../../types/spec';
 import { SpecParser } from '../../parser/SpecParser';
-import { QualityService } from '../../utils/QualityService';
+import { applyPlan, preparePlan } from '../../operations/plans';
+import { resolveInside, writeInside } from '../../utils/sandbox';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'yaml';
@@ -64,6 +65,13 @@ export function registerAddCommand(program: Command) {
     .argument('<module-name>', '模块名，如 user、product')
     .option('-t, --type <type>', 'API 类型 rest|grpc|graphql，传入则跳过交互式选择')
     .action(async (moduleName: string, options: AddCommandOptions) => {
+      if (!process.stdin.isTTY) {
+        console.error(
+          'NON_INTERACTIVE: use plan --spec <path> --json, then apply --plan <id> --yes'
+        );
+        process.exitCode = 1;
+        return;
+      }
       const name = moduleName.trim();
       if (!name) {
         console.error('请提供模块名，如: koatty add user 或 kt add user');
@@ -76,7 +84,7 @@ export function registerAddCommand(program: Command) {
           : undefined;
 
       const cwd = process.cwd();
-      const ymlPath = path.join(cwd, `${name}.yml`);
+      const ymlPath = resolveInside(cwd, `${name}.yml`);
       let existingSpec: Spec | undefined;
       if (fs.existsSync(ymlPath)) {
         try {
@@ -102,59 +110,20 @@ export function registerAddCommand(program: Command) {
         const changeset = await pipeline.execute();
         spinner.succeed(`模块 ${name} 生成完成`);
 
-        // grpc/graphql: 更新 config/server.ts 的 protocol
-        const apiType = spec.api?.type;
-        if (apiType === 'grpc' || apiType === 'graphql') {
-          const { addProtocolToServerConfig } = await import('../../utils/serverConfigPatcher');
-          if (addProtocolToServerConfig(cwd, apiType)) {
-            console.log('\n📄 已更新 src/config/server.ts，已添加 protocol');
-          }
-        }
-
         console.log(ChangeSetFormatter.format(changeset));
 
-        const csDir = path.join(cwd, '.koatty', 'changesets');
+        const csDir = resolveInside(cwd, '.koatty/changesets');
         if (!fs.existsSync(csDir)) {
           fs.mkdirSync(csDir, { recursive: true });
         }
         const csPath = path.join(csDir, `${changeset.id}.json`);
         changeset.save(csPath);
 
-        fs.writeFileSync(ymlPath, specToYaml(spec), 'utf-8');
+        writeInside(cwd, ymlPath, specToYaml(spec));
         console.log(`\n📄 已保存配置: ${ymlPath}`);
 
         if (result.apply) {
-          const { FileOperator } = await import('../../utils/FileOperator');
-          const { ensureBackupInGitignore } = await import('../../utils/gitignore');
-          const appliedPaths: string[] = [];
-          const backupPaths: string[] = [];
-          for (const change of changeset.getChanges()) {
-            const fullPath = path.join(cwd, change.path);
-            if (change.type === 'create' || change.type === 'modify') {
-              const beforeCount = backupPaths.length;
-              FileOperator.writeFile(fullPath, change.content || '', true, (bp) =>
-                backupPaths.push(bp)
-              );
-              console.log(`  ✅ ${change.type === 'create' ? '创建' : '修改'} ${change.path}`);
-              if (backupPaths.length > beforeCount) {
-                console.log(
-                  `     📦 备份: ${path.relative(cwd, backupPaths[backupPaths.length - 1])}`
-                );
-              }
-              appliedPaths.push(fullPath);
-            } else if (change.type === 'delete') {
-              FileOperator.deleteFile(fullPath);
-              console.log(`  🗑️  删除 ${change.path}`);
-            }
-          }
-          if (backupPaths.length > 0) {
-            ensureBackupInGitignore(cwd);
-          }
-          if (appliedPaths.length > 0) {
-            const formatSpinner = ora('正在格式化...').start();
-            QualityService.formatFiles(appliedPaths);
-            formatSpinner.succeed('格式化完成');
-          }
+          applyPlan(cwd, preparePlan(cwd, changeset.toJSON()), false);
           console.log('\n✨ 已写入项目，可直接使用。');
         } else {
           console.log(`\n✨ 预览完成。变更生效请执行: koatty apply ${name}`);

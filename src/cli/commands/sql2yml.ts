@@ -10,6 +10,7 @@ import ora from 'ora';
 import { sql2yml } from '../../utils/sql2yml';
 import { GeneratorPipeline } from '../../pipeline/GeneratorPipeline';
 import { createReadlineInterface, question } from '../utils/prompt';
+import { applyPlan, preparePlan } from '../../operations/plans';
 import { SpecFieldType } from '../../parser/SqlTypeMap';
 
 const VALID_TYPES = ['string', 'number', 'boolean', 'datetime', 'text', 'json'];
@@ -77,6 +78,8 @@ export function registerSql2YmlCommand(program: Command) {
         });
 
         if (result.unknownTypes.length > 0 && !options.yes) {
+          if (!process.stdin.isTTY)
+            throw new Error('NON_INTERACTIVE: unknown SQL types require explicit mapping or --yes');
           spinner.stop();
           typeOverrides = await promptForUnknownTypes(result.unknownTypes);
           spinner.start('正在应用类型映射...');
@@ -116,54 +119,15 @@ export function registerSql2YmlCommand(program: Command) {
             try {
               const pipeline = new GeneratorPipeline(ymlPath, { workingDirectory: process.cwd() });
               const changeset = await pipeline.execute();
-              const { FileOperator } = await import('../../utils/FileOperator');
-              const { ensureBackupInGitignore } = await import('../../utils/gitignore');
-              const backupPaths: string[] = [];
-
-              for (const change of changeset.getChanges()) {
-                const fullPath = path.join(process.cwd(), change.path);
-                if (change.type === 'create' || change.type === 'modify') {
-                  const beforeCount = backupPaths.length;
-                  FileOperator.writeFile(fullPath, change.content || '', true, (bp) =>
-                    backupPaths.push(bp)
-                  );
-                  console.log(`  ✅ ${change.type === 'create' ? '创建' : '修改'} ${change.path}`);
-                  if (backupPaths.length > beforeCount) {
-                    console.log(
-                      `     📦 备份: ${path.relative(process.cwd(), backupPaths[backupPaths.length - 1])}`
-                    );
-                  }
-                } else if (change.type === 'delete') {
-                  FileOperator.deleteFile(fullPath);
-                  console.log(`  🗑️  删除 ${change.path}`);
-                }
-              }
-
-              if (backupPaths.length > 0) {
-                ensureBackupInGitignore(process.cwd());
-              }
-
-              const { addProtocolToServerConfig } = await import('../../utils/serverConfigPatcher');
-              const apiType = pipeline.getSpec().api?.type;
-              if (apiType === 'grpc' || apiType === 'graphql') {
-                addProtocolToServerConfig(process.cwd(), apiType);
-              }
-
-              const { QualityService } = await import('../../utils/QualityService');
-              const appliedPaths = changeset
-                .getChanges()
-                .filter((c) => c.type === 'create' || c.type === 'modify')
-                .map((c) => path.join(process.cwd(), c.path));
-              if (appliedPaths.length > 0) {
-                QualityService.formatFiles(appliedPaths);
-              }
+              applyPlan(process.cwd(), preparePlan(process.cwd(), changeset.toJSON()), false);
 
               spinner2.succeed(`模块 ${moduleName} 生成完成`);
             } catch (err) {
               spinner2.fail(`模块 ${moduleName} 生成失败: ${(err as Error).message}`);
+              process.exitCode = 1;
             }
           }
-          console.log('\n✨ 模块生成完成。');
+          if (!process.exitCode) console.log('\n✨ 模块生成完成。');
         } else {
           console.log('\n✨ 预览完成。变更生效请执行:');
           for (const t of tables) {

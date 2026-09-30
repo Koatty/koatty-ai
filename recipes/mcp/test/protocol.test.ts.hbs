@@ -1,0 +1,61 @@
+import { createServer } from 'http';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { createApplication } from '../src/application';
+{{#if agent}}import type { LlmProvider } from 'koatty_llm';
+const provider: LlmProvider = { name: 'local-test', async *stream() { yield { type: 'text', delta: 'hello' }; yield { type: 'done' }; } };{{/if}}
+
+it('serves a real MCP client and denies a write before reaching the business service', async () => {
+  const app = createApplication({ keys: { 'test-only': ['greeting:read'] }{{#if agent}}, provider, model: 'test'{{/if}} });
+  const server = app.host.createServer({ headers: { 'x-api-key': 'test-only' }, transport: 'http' });
+  const client = new Client({ name: 'test', version: '1' });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  try {
+    await Promise.all([client.connect(a), server.connect(b)]);
+    const tools = await client.listTools();
+    expect(tools.tools.map(t => t.name)).toContain('greeting_read');
+    const read = await client.callTool({ name: 'greeting_read', arguments: {} });
+    expect(read.structuredContent).toEqual({ message: 'Hello, Koatty!' });
+    await expect(client.callTool({ name: 'greeting_rename', arguments: { name: 'changed' } })).rejects.toThrow();
+    expect((await client.callTool({ name: 'greeting_read', arguments: {} })).structuredContent).toEqual(read.structuredContent);
+  } finally { await client.close(); await server.close(); await app.close(); }
+});
+
+it('rejects writes without approval even with the write scope', async () => {
+  const app = createApplication({ keys: { 'test-only': ['greeting:read', 'greeting:write'] }{{#if agent}}, provider, model: 'test'{{/if}} });
+  const identity = { principal: { id: 'test', scopes: ['greeting:write'] }, headers: {}, sessionId: 'test', requestId: 'write' };
+  try { await expect(app.host.callTool('greeting_rename', { name: 'changed' }, identity)).rejects.toThrow(); }
+  finally { await app.close(); }
+});
+
+
+it('serves a real HTTP MCP connection{{#if agent}} and authenticated SSE question{{/if}}', async () => {
+  const app = createApplication({ keys: { 'test-only': ['greeting:read'] }{{#if agent}}, provider, model: 'test'{{/if}} });
+  const server = createServer(app.app.callback());
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as { port: number };
+  const base = 'http://127.0.0.1:' + address.port;
+  const client = new Client({ name: 'http-test', version: '1' });
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(base + '/mcp'), {
+      requestInit: { headers: { 'x-api-key': 'test-only', Origin: 'http://localhost' } },
+    }));
+    expect((await client.callTool({ name: 'greeting_read', arguments: {} })).structuredContent).toEqual({ message: 'Hello, Koatty!' });
+    const rejected = await fetch(base + '/mcp', { method: 'POST', headers: { Origin: 'http://localhost', 'Content-Type': 'application/json' }, body: '{}' });
+    expect(rejected.status).toBe(401);
+{{#if agent}}
+    const invalid = await fetch(base + '/ask', { method: 'POST', headers: { 'x-api-key': 'test-only', 'Content-Type': 'application/json' }, body: 'null' });
+    expect(invalid.status).toBe(400);
+    const stream = await fetch(base + '/ask', { method: 'POST', headers: { 'x-api-key': 'test-only', 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Say hello' }) });
+    expect(stream.status).toBe(200);
+    const events = await stream.text();
+    expect(events).toContain('hello');
+    expect(events).toContain('event: done');
+{{/if}}
+  } finally {
+    await client.close(); await app.close();
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+});

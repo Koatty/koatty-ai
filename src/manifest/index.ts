@@ -28,6 +28,7 @@ import {
   unresolved,
 } from './schema';
 export { manifestSchema } from './schema';
+import { collectMcp, ManifestMcp } from './mcp';
 import { collectRuntimeManifest, RuntimeManifest } from './runtime';
 import {
   Project,
@@ -86,6 +87,7 @@ export interface ManifestAspect {
 export interface KoattyManifest {
   schemaVersion: 1;
   collectionMode: 'static';
+  mcp?: ManifestMcp;
   unresolved: Unresolved[];
   runtime?: RuntimeManifest;
   koatty: string;
@@ -373,6 +375,7 @@ export function collectManifest(rootPath: string, options: CollectOptions = {}):
   return {
     schemaVersion: 1,
     collectionMode: 'static',
+    mcp: collectMcp(project, root, schemas, pending),
     unresolved: pending,
     ...(options.runtimeDir ? { runtime: collectRuntimeManifest(root, options.runtimeDir) } : {}),
     koatty: detectKoattyVersion(root),

@@ -12,7 +12,7 @@ describe('Plan Command', () => {
     try {
       execSync(`node ${cliPath} plan`, { encoding: 'utf-8', stdio: 'pipe' });
     } catch (e: any) {
-      expect(e.stdout.toString() || e.stderr.toString()).toContain('--spec <path> is required');
+      expect(`${e.stdout}${e.stderr}`).toContain('--spec <path> is required');
     }
   });
 });
@@ -25,7 +25,7 @@ describe('Apply Command', () => {
       execSync(`node ${cliPath} apply`, { encoding: 'utf-8', stdio: 'pipe' });
     } catch (e: any) {
       const combined = `${e.stdout}${e.stderr}`;
-      expect(combined).toContain('请指定模块名');
+      expect(combined).toContain('INVALID_ARGUMENT');
     }
   });
 

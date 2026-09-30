@@ -30,11 +30,11 @@ export function createMcpServer(root: string, version = '0.0.0'): Server {
 
   server.setRequestHandler(
     CallToolRequestSchema,
-    async (request): Promise<CallToolResult> =>
+    async (request, extra): Promise<CallToolResult> =>
       callToolSafe(
         request.params.name,
         (request.params.arguments ?? {}) as Record<string, unknown>,
-        ctx
+        { ...ctx, session: ctx, signal: extra.signal }
       )
   );
 

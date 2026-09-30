@@ -18,7 +18,7 @@ export function ensureDocScriptInPackageJson(
   for (const [name, version] of Object.entries({
     typeorm: '^0.3.28',
     'class-validator': '^0.14.3',
-    koatty_validation: '^4.0.0',
+    koatty_validation: '^5.0.0',
   })) {
     pkg.dependencies[name] ??= version;
   }

@@ -1,0 +1,18 @@
+import { createServer } from 'http';
+import { createApplication } from './application';
+{{#if agent}}import { createOpenAiCompatibleProvider } from 'koatty_llm';{{/if}}
+
+if (require.main === module) {
+  // Read credentials at the composition boundary; never print their values.
+  const keys = JSON.parse(process.env.MCP_API_KEYS ?? '{}');
+  const application = createApplication({ keys{{#if agent}},
+    provider: createOpenAiCompatibleProvider({ name: 'remote', baseUrl: process.env.LLM_BASE_URL ?? 'https://api.openai.com/v1', apiKey: process.env.LLM_PROVIDER_TOKEN }),
+    model: process.env.LLM_MODEL ?? 'default'{{/if}} });
+  const server = createServer(application.app.callback());
+  server.listen(Number(process.env.PORT ?? 3000), '127.0.0.1');
+  for (const event of ['SIGINT', 'SIGTERM'] as const) process.once(event, () => {
+    const timer = setTimeout(() => server.closeAllConnections(), 5000); timer.unref();
+    server.close(() => { clearTimeout(timer); void application.close(); });
+    server.closeIdleConnections();
+  });
+}

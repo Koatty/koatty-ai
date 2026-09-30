@@ -27,7 +27,8 @@ export class TemplateLoader {
     if (path.isAbsolute(templatePath)) {
       fullPath = templatePath;
     } else {
-      const baseDir = await this.templateManager.getTemplatePath(templateType);
+      const baseDir = (await this.templateManager.resolveTemplate(templateType, { offline: true }))
+        .directory;
       fullPath = path.join(baseDir, templatePath);
     }
 

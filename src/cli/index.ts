@@ -16,6 +16,8 @@ import { registerSql2YmlCommand } from './commands/sql2yml';
 import { registerManifestCommand } from './commands/manifest';
 import { registerMcpCommand } from './commands/mcp';
 
+import { registerDevelopmentCommands } from './commands/development';
+
 const program = new Command();
 
 program
@@ -34,6 +36,7 @@ registerTemplateCommand(program);
 registerSql2YmlCommand(program);
 registerManifestCommand(program);
 registerMcpCommand(program);
+registerDevelopmentCommands(program);
 
 program.parse(process.argv);
 
