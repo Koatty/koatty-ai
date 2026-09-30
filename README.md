@@ -1,6 +1,6 @@
 # Koatty CLI - 智能脚手架工具
 
-Koatty CLI 为 Koatty 4.0 框架提供智能代码生成，通过 交互/命令行快速生成 Controller、Service、Model、DTO、Middleware、Plugin、Aspect、Exception、Proto 等；也支持 YAML/JSON 做精细配置。
+Koatty CLI(`koatty_cli`)为 Koatty 5.x 框架提供智能代码生成，通过交互/命令行快速生成 Controller、Service、Model、DTO、Middleware、Plugin、Aspect、Exception、Proto 等；也支持 YAML/JSON 做精细配置。5.1 起内置 **AI 开发工作流**(manifest 静态发现、签名计划、事务化应用、doctor/verify)与 **MCP 工程模板**。
 
 ## ✨ 特性
 
@@ -14,6 +14,10 @@ Koatty CLI 为 Koatty 4.0 框架提供智能代码生成，通过 交互/命令�
 - **数据验证与权限**：koatty_validation、RBAC
 - **变更生效备份**：apply 时对原文件做时间戳备份（`*.bak.HHMMSS`），并加入 `.gitignore`
 - **模板缓存管理**：`koatty template update/status` 管理本地模板缓存
+- **静态 manifest（AI 友好）**：`koatty manifest` 离线收集路由 / DTO / config 的 JSON Schema（`--section tools --limit 20` 有界分页），无法等价表达的规则输出 `unresolved` 诊断，不泄露配置值
+- **AI 开发工作流**：`doctor` / `capabilities` / `plan --save-plan` / `apply --plan` / `verify` 组成"发现 → 签名计划 → 事务化应用 → 校验"闭环，结构化 JSON 输出；MCP/Agent 模板自带 `.agents/skills/koatty/`
+- **写沙箱（fail closed）**：写入拒绝目录穿越与硬链接 inode 替换；目标文件已存在时拒绝覆盖；校验失败返回非零并明确已写入文件
+- **生成代码默认 Koatty 5**：`@Validated({ types: [Dto] })`、按方法的 DTO 文件、`return data` 风格，测试真实启动应用
 
 ---
 
@@ -708,7 +712,7 @@ BSD-3-Clause
 
 Made with ❤️ by the Koatty community
 
-## AI development workflow (unreleased)
+## AI development workflow（koatty_cli 5.1+ 已发布）
 
 Use `koatty capabilities --json` and `koatty doctor --json` to discover the installed contract.
 `plan --spec <file> --save-plan --json` produces a reviewable, project-bound plan;
