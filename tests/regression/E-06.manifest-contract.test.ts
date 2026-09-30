@@ -68,18 +68,21 @@ test('DTO schemas validate nested, optional, enum, array and constraint semantic
   write(
     'src/dto/UserDto.ts',
     `export class Address { @MinLength(3) street:string; }
-  export class UserDto { @IsString() @MinLength(2) name:string; @Min(0) age?:number;
-    address:Address; roles:('reader'|'writer')[]; extra?: {enabled:boolean}; }`
+  export class UserDto { @IsString() @MinLength(2) name:string; @IsOptional() @Min(0) age?:number;
+    @ValidateNested() address:Address; @IsArray() roles:('reader'|'writer')[]; extra?: {enabled:boolean}; }`
   );
   const m = collectManifest(root);
   expect(validateManifest(m)).toEqual([]);
+  expect(m.unresolved.map((u) => u.kind)).toEqual(expect.arrayContaining(['dto.undecorated']));
   const validate = new Ajv({ strict: false }).compile(m.dtos.UserDto.schema);
   expect(validate({ name: 'ok', address: { street: 'road' }, roles: ['reader'] })).toBe(true);
+  expect(validate({ name: 'ok', age: 1, address: { street: 'road' }, roles: ['reader'] })).toBe(true);
   for (const value of [
     { name: 'x', address: { street: 'road' }, roles: [] },
     { name: 'ok', age: -1, address: { street: 'road' }, roles: [] },
     { name: 'ok', address: { street: 'a' }, roles: [] },
     { name: 'ok', address: { street: 'road' }, roles: ['admin'] },
+    { name: 'ok', address: { street: 'road' }, roles: ['reader'], extra: { enabled: true } },
   ])
     expect(validate(value)).toBe(false);
 });
