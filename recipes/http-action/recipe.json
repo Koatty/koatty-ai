@@ -1,0 +1,97 @@
+{
+  "id": "http-action",
+  "version": 1,
+  "title": "Add one HTTP action to a Koatty application",
+  "description": "Generates a single-action Controller with correct import/decorator/injection wiring, an optional field-driven request DTO with runtime validation, and either references an existing Service (existence and method signature verified) or creates a new Service with an explicit not-implemented placeholder.",
+  "koattyCliApi": "renderHttpActionApi",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "controller": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "Controller name, with or without trailing 'Controller'" },
+          "basePath": { "type": "string", "description": "Route base path starting with / (default: /<lowercased name>)" }
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      },
+      "action": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "Action method name" },
+          "method": { "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"] },
+          "path": { "type": "string", "description": "Action path (default /)" }
+        },
+        "required": ["name", "method"],
+        "additionalProperties": false
+      },
+      "dto": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "DTO class name (default Create<Controller>Dto; file name = class name)" },
+          "fields": {
+            "type": "object",
+            "minProperties": 1,
+            "description": "Field name -> {type, required, length, values, format}. Types: string|number|boolean|enum|datetime|text|json",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "type": { "enum": ["string", "number", "boolean", "enum", "datetime", "text", "json"] },
+                "required": { "type": "boolean" },
+                "length": { "type": "integer" },
+                "format": { "type": "string" },
+                "values": { "type": "array", "items": { "type": "string" } },
+                "min": { "type": "number" },
+                "max": { "type": "number" }
+              },
+              "required": ["type"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["fields"],
+        "additionalProperties": false
+      },
+      "service": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "mode": { "enum": ["create", "reference"] },
+          "method": { "type": "string", "description": "Service method to call (default: action name)" }
+        },
+        "required": ["name", "mode"],
+        "additionalProperties": false
+      }
+    },
+    "required": ["controller", "action", "service"],
+    "additionalProperties": false
+  },
+  "pending": [
+    "实现 Service 中的业务规则（事务边界、权限策略、外部服务调用由应用负责）。",
+    "对接口补充行为测试：合法请求应触达业务写入；非法 DTO 应在进入业务前被拒绝（422/400，不触达 Service）。",
+    "若路由需要认证，按项目现有 AuthAspect/守卫模式补齐，不要在生成的 Controller 里内联实现鉴权。"
+  ],
+  "references": [
+    "skills/koatty/references/http-dto.md",
+    "skills/koatty/references/service-di.md",
+    "skills/koatty/references/testing.md"
+  ],
+  "unsupported": [
+    "GET/DELETE 携带请求体 DTO（本版本只在 POST/PUT/PATCH 上生成请求体校验）",
+    "service.mode=reference 时服务类或方法不存在（拒绝而不是按名称盲目导入）",
+    "controller/dto/service 目标文件已存在（拒绝覆盖，复用已有组件）"
+  ],
+  "example": {
+    "controller": { "name": "OrderController", "basePath": "/orders" },
+    "action": { "name": "create", "method": "POST", "path": "/" },
+    "dto": {
+      "name": "CreateOrderDto",
+      "fields": {
+        "sku": { "type": "string", "required": true, "length": 64 },
+        "count": { "type": "number", "required": true }
+      }
+    },
+    "service": { "name": "OrderService", "mode": "create", "method": "create" }
+  }
+}

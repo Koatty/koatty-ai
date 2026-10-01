@@ -1,0 +1,56 @@
+{
+  "name": "koatty_ai",
+  "version": "0.1.0",
+  "description": "Koatty AI - Skill, framework knowledge tools, scenario recipes and framework checks for external AI Agents (depends on koatty_cli generation API)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "koatty-ai": "./dist/cli/index.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "recipes",
+    "knowledge",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "dev:link": "node scripts/dev-link.mjs",
+    "api-index": "node scripts/build-api-index.mjs"
+  },
+  "keywords": [
+    "koatty",
+    "ai",
+    "agent",
+    "skill",
+    "mcp",
+    "scaffolding"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "ajv": "^8.17.1",
+    "commander": "^14.0.2",
+    "koatty_cli": "^5.1.0",
+    "ts-morph": "^27.0.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.19.30",
+    "@typescript-eslint/eslint-plugin": "^8.53.1",
+    "@typescript-eslint/parser": "^8.53.1",
+    "eslint": "^9.39.2",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.3.0"
+  }
+}

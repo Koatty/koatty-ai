@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "node16",
+    "moduleResolution": "node16",
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "types": ["node", "jest"],
+    "baseUrl": ".",
+    "paths": {
+      "koatty_cli": ["../koatty_cli/dist/index.d.ts"],
+      "koatty_cli/generation": ["../koatty_cli/dist/api/generation.d.ts"],
+      "koatty_cli/project": ["../koatty_cli/dist/api/project.d.ts"],
+      "koatty_cli/*": ["../koatty_cli/dist/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
