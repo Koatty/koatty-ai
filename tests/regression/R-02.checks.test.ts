@@ -62,7 +62,7 @@ describe('R-02: Koatty 框架检查规则', () => {
       );
       fs.writeFileSync(
         path.join(root, 'src/controller/Order2Controller.ts'),
-        `import { Controller, GetMapping } from 'koatty';\n@Controller('/orders2')\nexport class Order2Controller {\n  @GetMapping('/:id')\n  detail() { return 2; }\n}\n`
+        `import { Controller, GetMapping } from 'koatty';\n@Controller('/orders')\nexport class Order2Controller {\n  @GetMapping('/:id')\n  detail() { return 2; }\n}\n`
       );
       const diagnostics = runChecks(root).filter((d) => d.ruleId === 'KOATTY_DUP_ROUTE');
       expect(diagnostics.length).toBe(2); // 两个文件各报一次

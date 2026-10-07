@@ -19,6 +19,10 @@ import {
   loadPlan,
   preparePlan,
   renderHttpActionApi,
+  renderComponent,
+  renderModule,
+  ComponentInput,
+  Spec,
   savePlan,
 } from 'koatty_cli/generation';
 import { AiOperationError, aiResult } from '../result';
@@ -36,7 +40,7 @@ export interface RecipeDefinition {
   title: string;
   description: string;
   /** 映射到 koatty_cli 公开生成 API 的固定函数 */
-  koattyCliApi: 'renderHttpActionApi';
+  koattyCliApi: 'renderHttpActionApi' | 'renderComponent' | 'renderModule';
   inputSchema: Record<string, unknown>;
   /** 生成后的业务待实现项（由工具追加到结果 notes） */
   pending: string[];
@@ -78,6 +82,8 @@ export function getRecipe(id: string): RecipeDefinition {
 }
 
 function renderByApi(api: RecipeDefinition['koattyCliApi'], root: string, params: Record<string, unknown>): Promise<GeneratedOutput> {
+  if (api === 'renderComponent') return renderComponent(root, params as unknown as ComponentInput);
+  if (api === 'renderModule') return renderModule(root, params as unknown as Spec);
   if (api !== 'renderHttpActionApi') {
     throw new AiOperationError('RECIPE_UNSUPPORTED', `Unknown koatty_cli API binding: ${api}`);
   }
@@ -125,11 +131,12 @@ export function planRecipeTool(): AiToolDefinition {
     name: 'koatty_ai_plan',
     command: 'plan',
     description:
-      'Render a scenario recipe (or raw changeset) into a signed, conflict-checked plan. Read-only until apply.',
+      'Render a scenario recipe (or raw changeset) into a signed, conflict-checked plan. Preview by default; savePlan=true explicitly persists CLI plan metadata.',
     inputSchema: {
       type: 'object',
       properties: {
         root: { type: 'string', description: 'Project root (default: cwd)' },
+        savePlan: { type: 'boolean', description: 'Explicitly save a signed CLI plan; MCP plans live in the connection' },
         recipe: { type: 'string', description: 'Recipe id (e.g. http-action)' },
         params: { type: 'object', description: 'Recipe input; validate against recipes <id>.inputSchema' },
         changeset: { type: 'object', description: 'Raw koatty_cli changeset (advanced; validated like the CLI)' },
@@ -137,7 +144,7 @@ export function planRecipeTool(): AiToolDefinition {
       required: [],
       additionalProperties: false,
     },
-    annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: false, destructiveHint: false },
     executesProjectCode: false,
     handler: async (input, ctx) => {
       const recipeId = input.recipe as string | undefined;
@@ -155,9 +162,9 @@ export function planRecipeTool(): AiToolDefinition {
 
       if (rawChangeset) {
         const plan = preparePlan(ctx.projectRoot, rawChangeset);
-        storePlan(ctx, plan);
+        storePlan(ctx, plan, input.savePlan === true);
         return aiResult('plan', 'preview', {
-          planId: plan.id,
+          planId: ctx.session || input.savePlan ? plan.id : undefined,
           hash: plan.hash,
           expires: plan.expires,
           changeset: plan.changeset,
@@ -177,36 +184,37 @@ export function planRecipeTool(): AiToolDefinition {
       }
       const output = await renderByApi(recipe.koattyCliApi, ctx.projectRoot, params);
       const plan = preparePlan(ctx.projectRoot, output.changeset);
-      storePlan(ctx, plan);
+      storePlan(ctx, plan, input.savePlan === true);
       return aiResult('plan', 'preview', {
-        planId: plan.id,
+        planId: ctx.session || input.savePlan ? plan.id : undefined,
         hash: plan.hash,
         expires: plan.expires,
         changeset: plan.changeset,
         outputs: output.outputs,
         generator: output.generator,
         resolved: output.resolved ?? null,
-        persisted: !ctx.session,
+        persisted: !ctx.session && input.savePlan === true,
         notes: [...output.notes, ...recipe.pending],
         references: recipe.references,
-        next: 'Review the changeset, then call koatty_ai_apply with planId.',
+        next: ctx.session || input.savePlan ? 'Review the changeset, then apply this planId.' : 'Preview only. Use savePlan=true to persist a CLI plan before apply.',
       });
     },
   };
 }
 
-function storePlan(context: { session?: object; projectRoot: string }, plan: DevelopmentPlan): 'session' | 'local' {
+function storePlan(context: { session?: object; projectRoot: string }, plan: DevelopmentPlan, save: boolean): void {
   if (context.session) {
     let plans = sessionPlans.get(context.session);
     if (!plans) {
       plans = new Map();
       sessionPlans.set(context.session, plans);
     }
+    for (const [id, old] of plans) if (old.expires < Date.now()) plans.delete(id);
+    if (plans.size >= 32) plans.delete(plans.keys().next().value!);
     plans.set(plan.id, plan);
-    return 'session';
+    return;
   }
-  savePlan(context.projectRoot, plan);
-  return 'local';
+  if (save) savePlan(context.projectRoot, plan);
 }
 
 function retrievePlan(context: { session?: object; projectRoot: string }, planId: string): DevelopmentPlan {
@@ -231,6 +239,7 @@ function consumePlan(
 ): ReturnType<typeof applyPlan> {
   if (context.session) {
     const plan = retrievePlan(context, planId);
+    applyPlan(context.projectRoot, plan, true);
     if (!dryRun) sessionPlans.get(context.session!)!.delete(planId); // 会话内单次消费
     return applyPlan(context.projectRoot, plan, dryRun);
   }

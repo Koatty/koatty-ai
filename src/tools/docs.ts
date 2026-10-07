@@ -58,14 +58,20 @@ export function docsTool(): AiToolDefinition {
         keyword: { type: 'string', description: 'Case-insensitive substring fallback' },
         root: { type: 'string', description: 'Project root for installed-version resolution' },
         limit: { type: 'integer', minimum: 1, maximum: 100 },
+        guide: { enum: ['project', 'http-dto', 'service-di', 'persistence', 'protocols', 'extensions', 'mcp-agent', 'testing', 'troubleshooting'], description: 'Read one bundled scenario guide' },
       },
       additionalProperties: false,
     },
     annotations: { readOnlyHint: true, idempotentHint: true },
     executesProjectCode: false,
     handler: async (input, ctx) => {
+      if (input.guide) {
+        const reference = `skills/koatty/references/${input.guide}.md`;
+        const content = fs.readFileSync(path.join(__dirname, '../..', reference), 'utf8');
+        return aiResult('docs', 'completed', { reference, content: content.slice(0, 32000), truncated: content.length > 32000 });
+      }
       const index = loadIndex();
-      const root = (input.root as string | undefined) ?? ctx.projectRoot;
+      const root = ctx.projectRoot;
       const limit = (input.limit as number | undefined) ?? 30;
       const api = input.api as string | undefined;
       const pkgFilter = input.package as string | undefined;
@@ -97,7 +103,7 @@ export function docsTool(): AiToolDefinition {
         if (pkgFilter && name !== pkgFilter) continue;
         if (p.exports.length === 0) continue;
         const matches = p.exports.filter((exp) =>
-          api ? exp === api : keyword ? exp.toLowerCase().includes(keyword!) : false
+          api ? exp === api : keyword ? exp.toLowerCase().includes(keyword!) : true
         );
         for (const exp of matches) {
           const origin = p.reexportedFrom[exp];
@@ -145,6 +151,7 @@ export function docsTool(): AiToolDefinition {
           .sort((a, b) => (a.api === b.api ? a.package.localeCompare(b.package) : a.api.localeCompare(b.api)))
           .slice(0, limit),
         referenceRoot: 'skills/koatty/references/',
+        versionNote: 'The bundled snapshot is guidance, not proof that an API exists in the installed version. Same major alone does not guarantee compatibility.',
       });
     },
   };

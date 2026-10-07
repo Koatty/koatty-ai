@@ -1,0 +1,111 @@
+{
+  "id": "crud",
+  "version": 1,
+  "title": "crud",
+  "description": "Compose the public koatty_cli generator without copying templates.",
+  "koattyCliApi": "renderModule",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "module": {
+        "type": "string",
+        "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+      },
+      "fields": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "primary": {
+              "type": "boolean"
+            },
+            "auto": {
+              "type": "boolean"
+            },
+            "unique": {
+              "type": "boolean"
+            },
+            "length": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "propertyNames": {
+          "pattern": "^(?!constructor$|__proto__$|prototype$)[A-Za-z_][A-Za-z0-9_]*$"
+        }
+      },
+      "api": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "enum": [
+              "rest",
+              "grpc",
+              "graphql"
+            ]
+          },
+          "basePath": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "endpoints": {
+            "type": "array",
+            "maxItems": 0
+          }
+        },
+        "required": [
+          "basePath"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "module",
+      "fields"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "module": "article",
+    "fields": {
+      "title": {
+        "type": "string",
+        "required": true
+      }
+    },
+    "api": {
+      "type": "rest",
+      "basePath": "/articles",
+      "endpoints": []
+    }
+  },
+  "pending": [
+    "Configure the database and test persistence; generated unit tests do not prove database behavior."
+  ],
+  "references": [
+    "skills/koatty/references/project.md"
+  ],
+  "unsupported": [
+    "Options outside the schema are rejected.",
+    "This AI recipe accepts string/number/boolean fields only; richer DTO/model mappings require explicit implementation and tests."
+  ]
+}

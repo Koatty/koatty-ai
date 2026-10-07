@@ -3,7 +3,7 @@
 ## Identify the project first
 
 - Read `package.json`: dependency `koatty` is the framework; underscore packages (`koatty_validation`, `koatty_typeorm`, …) are optional components. `koatty-ai doctor` reports missing static prerequisites without starting anything.
-- Determine the framework major from the installed package (`koatty-ai docs` or node_modules), not from README snippets. Generation templates are version-matched; when compatibility cannot be established the tools return `unresolved` instead of silently using the latest template.
+- Determine the framework major from the installed package (`koatty-ai docs` or node_modules), not from README snippets. The docs index reports its snapshot version and the installed version; same-major is not proof of API availability. Check declarations and run verification when versions differ.
 - Typical layout: `src/App.ts`, `src/config`, `src/controller`, `src/service`, `src/dto`, `src/model` (entities), `src/aspect`, `src/plugin`, `src/middleware`, `test`. Read the existing layout before inventing a new one; exported class names must match source filenames for Loader discovery.
 
 ## Create a new project

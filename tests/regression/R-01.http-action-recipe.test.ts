@@ -18,7 +18,7 @@ describe('R-01: http-action recipe 契约', () => {
     expect(recipes.map((r) => r.id)).toContain('http-action');
     const pkgRoot = path.resolve(__dirname, '../..');
     for (const recipe of recipes) {
-      expect(recipe.koattyCliApi).toBe('renderHttpActionApi');
+      expect(['renderHttpActionApi', 'renderComponent', 'renderModule']).toContain(recipe.koattyCliApi);
       for (const ref of recipe.references) {
         expect(fs.existsSync(path.join(pkgRoot, ref))).toBe(true);
       }
@@ -32,7 +32,7 @@ describe('R-01: http-action recipe 契约', () => {
     try {
       const result = await runTool(
         toolFor('plan'),
-        { recipe: 'http-action', params: EXAMPLE_PARAMS },
+        { recipe: 'http-action', params: EXAMPLE_PARAMS, savePlan: true },
         { projectRoot: root }
       );
       expect(result.status).toBe('preview');
@@ -58,7 +58,7 @@ describe('R-01: http-action recipe 契约', () => {
     try {
       const issued = await runTool(
         toolFor('plan'),
-        { recipe: 'http-action', params: EXAMPLE_PARAMS },
+        { recipe: 'http-action', params: EXAMPLE_PARAMS, savePlan: true },
         { projectRoot: root }
       );
       const planId = (issued.data as { planId: string }).planId;

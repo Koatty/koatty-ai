@@ -80,7 +80,12 @@ export async function runTool(
   const input = (rawInput ?? {}) as Record<string, unknown>;
   try {
     validateInput(tool, input);
-    const result = await tool.handler(input, context);
+    const root = path.resolve(context.projectRoot);
+    if (typeof input.root === 'string' && path.resolve(input.root) !== root) {
+      throw new AiOperationError('ROOT_MISMATCH', 'Tool root must match the host-selected project root');
+    }
+    context.signal?.throwIfAborted();
+    const result = await tool.handler(input, { ...context, projectRoot: root });
     assertEnvelope(result);
     return result;
   } catch (error) {

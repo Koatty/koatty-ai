@@ -10,26 +10,54 @@
       "controller": {
         "type": "object",
         "properties": {
-          "name": { "type": "string", "description": "Controller name, with or without trailing 'Controller'" },
-          "basePath": { "type": "string", "description": "Route base path starting with / (default: /<lowercased name>)" }
+          "name": {
+            "type": "string",
+            "description": "Controller name, with or without trailing 'Controller'"
+          },
+          "basePath": {
+            "type": "string",
+            "description": "Route base path starting with / (default: /<lowercased name>)"
+          }
         },
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "additionalProperties": false
       },
       "action": {
         "type": "object",
         "properties": {
-          "name": { "type": "string", "description": "Action method name" },
-          "method": { "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"] },
-          "path": { "type": "string", "description": "Action path (default /)" }
+          "name": {
+            "type": "string",
+            "description": "Action method name"
+          },
+          "method": {
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "DELETE",
+              "PATCH"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "description": "Action path (default /)"
+          }
         },
-        "required": ["name", "method"],
+        "required": [
+          "name",
+          "method"
+        ],
         "additionalProperties": false
       },
       "dto": {
         "type": "object",
         "properties": {
-          "name": { "type": "string", "description": "DTO class name (default Create<Controller>Dto; file name = class name)" },
+          "name": {
+            "type": "string",
+            "description": "DTO class name (default Create<Controller>Dto; file name = class name)"
+          },
           "fields": {
             "type": "object",
             "minProperties": 1,
@@ -37,34 +65,84 @@
             "additionalProperties": {
               "type": "object",
               "properties": {
-                "type": { "enum": ["string", "number", "boolean", "enum", "datetime", "text", "json"] },
-                "required": { "type": "boolean" },
-                "length": { "type": "integer" },
-                "format": { "type": "string" },
-                "values": { "type": "array", "items": { "type": "string" } },
-                "min": { "type": "number" },
-                "max": { "type": "number" }
+                "type": {
+                  "enum": [
+                    "string",
+                    "number",
+                    "boolean",
+                    "enum",
+                    "datetime",
+                    "text",
+                    "json"
+                  ]
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "length": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "format": {
+                  "enum": [
+                    "email"
+                  ]
+                },
+                "values": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
               },
-              "required": ["type"],
+              "required": [
+                "type"
+              ],
               "additionalProperties": false
             }
           }
         },
-        "required": ["fields"],
+        "required": [
+          "fields"
+        ],
         "additionalProperties": false
       },
       "service": {
         "type": "object",
         "properties": {
-          "name": { "type": "string" },
-          "mode": { "enum": ["create", "reference"] },
-          "method": { "type": "string", "description": "Service method to call (default: action name)" }
+          "name": {
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "create",
+              "reference"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "description": "Service method to call (default: action name)"
+          }
         },
-        "required": ["name", "mode"],
+        "required": [
+          "name",
+          "mode"
+        ],
         "additionalProperties": false
       }
     },
-    "required": ["controller", "action", "service"],
+    "required": [
+      "controller",
+      "action",
+      "service"
+    ],
     "additionalProperties": false
   },
   "pending": [
@@ -80,18 +158,37 @@
   "unsupported": [
     "GET/DELETE 携带请求体 DTO（本版本只在 POST/PUT/PATCH 上生成请求体校验）",
     "service.mode=reference 时服务类或方法不存在（拒绝而不是按名称盲目导入）",
-    "controller/dto/service 目标文件已存在（拒绝覆盖，复用已有组件）"
+    "controller/dto/service 目标文件已存在（拒绝覆盖，复用已有组件）",
+    "Route path parameters/wildcards and dynamic Service registrations need explicit host editing and verification."
   ],
   "example": {
-    "controller": { "name": "OrderController", "basePath": "/orders" },
-    "action": { "name": "create", "method": "POST", "path": "/" },
+    "controller": {
+      "name": "OrderController",
+      "basePath": "/orders"
+    },
+    "action": {
+      "name": "create",
+      "method": "POST",
+      "path": "/"
+    },
     "dto": {
       "name": "CreateOrderDto",
       "fields": {
-        "sku": { "type": "string", "required": true, "length": 64 },
-        "count": { "type": "number", "required": true }
+        "sku": {
+          "type": "string",
+          "required": true,
+          "length": 64
+        },
+        "count": {
+          "type": "number",
+          "required": true
+        }
       }
     },
-    "service": { "name": "OrderService", "mode": "create", "method": "create" }
+    "service": {
+      "name": "OrderService",
+      "mode": "create",
+      "method": "create"
+    }
   }
 }

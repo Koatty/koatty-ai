@@ -37,6 +37,8 @@ export function contextTool(): AiToolDefinition {
           items: { enum: SECTION_ENUM },
           description: 'Sections to include (default: all)',
         },
+        offset: { type: 'integer', minimum: 0 },
+        component: { type: 'string', description: 'Focus on one component and its dependents/routes' },
         limit: {
           type: 'integer',
           minimum: 1,
@@ -59,6 +61,12 @@ export function contextTool(): AiToolDefinition {
       ];
       const limit = (input.limit as number | undefined) ?? 100;
       const manifest = describeProject(ctx.projectRoot);
+      const offset = (input.offset as number | undefined) ?? 0;
+      if (input.component) {
+        manifest.components = manifest.components.filter((c) => c.id === input.component || c.dependsOn.includes(String(input.component)));
+        manifest.routes = manifest.routes.filter((r) => r.controller === input.component);
+      }
+      const totals: Record<string, number> = { components: manifest.components.length, routes: manifest.routes.length, dtos: Object.keys(manifest.dtos).length, protocols: manifest.protocols.length, config: manifest.config.keys.length, aspects: manifest.aspects.length, unresolved: manifest.unresolved.length };
       const schemaErrors = validateProjectManifest(manifest);
 
       const data: Record<string, unknown> = {
@@ -68,14 +76,12 @@ export function contextTool(): AiToolDefinition {
         collectionMode: manifest.collectionMode,
         installedVersions: installedVersions(ctx.projectRoot, ['koatty']),
         schemaErrors,
-        truncated: {
-          components: sections.includes('components') && manifest.components.length > limit,
-          routes: sections.includes('routes') && manifest.routes.length > limit,
-        },
+        pagination: Object.fromEntries(sections.map((section) => [section, { total: totals[section], offset, nextOffset: totals[section] > offset + limit ? offset + limit : null }])),
+        truncated: Object.fromEntries(sections.map((section) => [section, totals[section] > offset + limit])),
         note: 'Static declarations only; read business source files with host tools. Config values are never included.',
       };
       if (sections.includes('components')) {
-        data.components = manifest.components.slice(0, limit).map((c) => ({
+        data.components = manifest.components.slice(offset, offset + limit).map((c) => ({
           id: c.id,
           type: c.type,
           scope: c.scope,
@@ -84,7 +90,7 @@ export function contextTool(): AiToolDefinition {
         }));
       }
       if (sections.includes('routes')) {
-        data.routes = manifest.routes.slice(0, limit).map((r) => ({
+        data.routes = manifest.routes.slice(offset, offset + limit).map((r) => ({
           controller: r.controller,
           handler: r.handler,
           method: r.method,
@@ -96,19 +102,19 @@ export function contextTool(): AiToolDefinition {
       }
       if (sections.includes('dtos')) {
         data.dtos = Object.entries(manifest.dtos)
-          .slice(0, limit)
+          .slice(offset, offset + limit)
           .map(([name, dto]) => ({ name, file: dto.file, fields: Object.keys(dto.fields) }));
       }
-      if (sections.includes('protocols')) data.protocols = manifest.protocols;
+      if (sections.includes('protocols')) data.protocols = manifest.protocols.slice(offset, offset + limit);
       if (sections.includes('config')) {
         // 只输出键名与 schema 来源，不输出配置值
         data.config = {
-          keys: manifest.config.keys.slice(0, limit),
+          keys: manifest.config.keys.slice(offset, offset + limit),
           schemaSource: manifest.config.schemaSource,
         };
       }
-      if (sections.includes('aspects')) data.aspects = manifest.aspects;
-      if (sections.includes('unresolved')) data.unresolved = manifest.unresolved.slice(0, limit);
+      if (sections.includes('aspects')) data.aspects = manifest.aspects.slice(offset, offset + limit);
+      if (sections.includes('unresolved')) data.unresolved = manifest.unresolved.slice(offset, offset + limit);
 
       return aiResult('context', 'completed', data);
     },

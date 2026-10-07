@@ -34,7 +34,7 @@ export function capabilitiesTool(): AiToolDefinition {
         boundaries: [
           'Static declarations are not live registrations.',
           'checks/verify report facts; they do not decide business acceptance.',
-          'Plans are expired, conflict-checked and single-use; writes only happen on apply.',
+          'Plans are expired, conflict-checked and single-use; source writes happen on apply; saving a CLI plan and installing a Skill are explicit writes.',
         ],
       });
     },

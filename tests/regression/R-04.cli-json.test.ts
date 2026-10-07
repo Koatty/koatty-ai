@@ -84,7 +84,7 @@ describe('R-04: koatty-ai CLI JSON 契约', () => {
           service: { name: 'OrderService', mode: 'create', method: 'create' },
         });
         const planned = runCli(
-          ['plan', '--recipe', 'http-action', '--params', params, '--root', root],
+          ['plan', '--savePlan', '--recipe', 'http-action', '--params', params, '--root', root],
           root
         );
         expect(planned.status).toBe(0);

@@ -2,6 +2,7 @@
  * koatty_ai Tools 注册表：CLI 与 MCP 共用同一组 handler、schema 与错误语义。
  */
 
+import { skillTool } from './skill';
 import { AiToolDefinition } from './registry';
 import { capabilitiesTool } from './capabilities';
 import { contextTool } from './context';
@@ -27,6 +28,7 @@ export function buildToolRegistry(): AiToolDefinition[] {
       checkTool(),
       verifyTool(),
       doctorTool(),
+      skillTool(),
     ];
   }
   return cached;

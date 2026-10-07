@@ -8,7 +8,9 @@
  * - 自动化路径（MCP/库调用）与 CLI 共用同一 handler，同输入同输出。
  */
 
-import { Command } from 'commander';
+import { Command, CommanderError } from 'commander';
+import * as path from 'path';
+import { startStdioServer } from '../mcp/server';
 import { createRequire } from 'module';
 import { AiToolDefinition, buildToolRegistry, runTool, ToolContext } from '../tools';
 import { aiResult } from '../result';
@@ -17,6 +19,8 @@ const nodeRequire = createRequire(__filename);
 const { version, description } = nodeRequire('../../package.json') as { version: string; description: string };
 
 const program = new Command();
+program.configureOutput({ writeErr: () => undefined });
+program.exitOverride();
 program
   .name('koatty-ai')
   .description(description)
@@ -39,7 +43,7 @@ function coerce(
     } else if (property?.type === 'array' && typeof value === 'string') {
       output[key] = value.split(',').map((item) => item.trim()).filter(Boolean);
     } else if (property?.type === 'integer' && typeof value === 'string') {
-      const parsed = Number.parseInt(value, 10);
+      const parsed = Number(value);
       output[key] = Number.isNaN(parsed) ? value : parsed;
     } else {
       output[key] = value;
@@ -59,10 +63,12 @@ async function runToolCommand(command: string, options: Record<string, unknown>)
     return;
   }
   const context: ToolContext = {
-    projectRoot: String(options.root ?? process.cwd()),
+    projectRoot: path.resolve(String(options.root ?? process.cwd())),
     // CLI 无会话：计划落盘为签名计划（.koatty/plans/<id>.json，单次消费）
   };
-  const result = await runTool(tool, coerce(options, tool.inputSchema), context);
+  const args = { ...options };
+  if (!tool.inputSchema.properties.root) delete args.root;
+  const result = await runTool(tool, coerce(args, tool.inputSchema), context);
   process.stdout.write(`${JSON.stringify(result)}\n`);
   if (result.status === 'failed' || result.status === 'cancelled') process.exitCode = 1;
   // verify 执行项目代码：stderr 给最低限度的进度提示
@@ -74,20 +80,34 @@ async function runToolCommand(command: string, options: Record<string, unknown>)
 function register(tool: AiToolDefinition): void {
   const cmd = program.command(tool.command).description(tool.description);
   for (const [name, schema] of Object.entries(tool.inputSchema.properties)) {
-    if (name === 'yes') continue; // 布尔开关单独注册
+    if ((schema as { type?: string }).type === 'boolean') { cmd.option(`--${name}`, 'Enable this option'); continue; }
     const description =
       (schema as { description?: string } | undefined)?.description ?? '';
     cmd.option(`--${name} <value>`, description);
   }
-  if (tool.inputSchema.properties.yes) cmd.option('--yes', 'Actually write (default: preview)');
+  if (!tool.inputSchema.properties.root) cmd.option('--root <path>', 'Project root');
+  cmd.option('--json', 'JSON output (the default)');
   cmd.action(async (options: Record<string, unknown>) => {
-    await runToolCommand(tool.command, options);
+    const input = { ...options };
+    delete input.json;
+    if (!tool.inputSchema.properties.root) delete input.root;
+    // Keep CLI root selection separate from the tool input schema.
+    await runToolCommand(tool.command, { ...input, ...(options.root ? { root: options.root } : {}) });
   });
 }
 
 for (const tool of buildToolRegistry()) register(tool);
 
-program.parse(process.argv);
+program.command('mcp').description('Start project-bound MCP over stdio')
+  .option('--root <path>', 'Project root')
+  .action(async (options) => { await startStdioServer(path.resolve(options.root ?? process.cwd()), version); });
+program.configureOutput({ writeErr: () => undefined });
+program.exitOverride();
+void program.parseAsync(process.argv).catch((error: unknown) => {
+  if (error instanceof CommanderError && error.exitCode === 0) return;
+  process.stdout.write(JSON.stringify(aiResult('cli', 'failed', null, [{ code: 'INVALID_ARGUMENT', message: error instanceof Error ? error.message : String(error) }])) + '\n');
+  process.exitCode = 1;
+});
 
 if (!process.argv.slice(2).length) {
   program.outputHelp();

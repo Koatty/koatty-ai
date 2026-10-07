@@ -14,6 +14,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { buildToolRegistry, runTool } from '../tools';
+import { aiOperationResultSchema } from '../result';
 
 export const MCP_SERVER_NAME = 'koatty_ai';
 
@@ -26,6 +27,7 @@ export function createMcpServer(root: string, version = '0.0.0'): Server {
       name: tool.name,
       description: tool.description,
       inputSchema: tool.inputSchema,
+      outputSchema: aiOperationResultSchema,
       annotations: tool.annotations,
     })),
   }));

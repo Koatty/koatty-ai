@@ -49,9 +49,67 @@ function relPath(source: SourceFile, root: string): string {
   return path.relative(root, source.getFilePath()).split(path.sep).join('/');
 }
 
+function importedName(node: Node, modules: string[]): string | undefined {
+  if (Node.isPropertyAccessExpression(node)) {
+    const namespace = node.getExpression();
+    if (!Node.isIdentifier(namespace)) return;
+    const declaration = namespace.getSymbol()?.getDeclarations().find(Node.isNamespaceImport);
+    const imp = declaration?.getFirstAncestorByKind(SyntaxKind.ImportDeclaration);
+    if (imp && modules.includes(imp.getModuleSpecifierValue())) return node.getName();
+    return;
+  }
+  if (!Node.isIdentifier(node)) return;
+  const declaration = node.getSymbol()?.getDeclarations().find(Node.isImportSpecifier);
+  const imp = declaration?.getFirstAncestorByKind(SyntaxKind.ImportDeclaration);
+  if (imp && modules.includes(imp.getModuleSpecifierValue())) return declaration?.getName();
+  return;
+}
+
+function decoratorName(decorator: import('ts-morph').Decorator, modules: string[]): string | undefined {
+  return importedName(decorator.getCallExpression()?.getExpression() ?? decorator.getExpression(), modules);
+}
+
 const MAPPING_DECORATORS = /^(Get|Post|Put|Delete|Patch|Head|Options|Request)Mapping$/;
 
 export const CHECK_RULES: CheckRule[] = [
+  {
+    id: 'KOATTY_VALIDATED_PARAMETERS', severity: 'error',
+    description: 'Statically declared Validated types must match method parameter positions.',
+    reference: 'skills/koatty/references/http-dto.md',
+    checkFile(source, root) {
+      const diagnostics: CheckDiagnostic[] = [];
+      for (const cls of source.getClasses()) for (const method of cls.getMethods()) {
+        for (const decorator of method.getDecorators()) {
+          if (decoratorName(decorator, ['koatty_validation']) !== 'Validated') continue;
+          const options = decorator.getCallExpression()?.getArguments()[0];
+          if (!options || !Node.isObjectLiteralExpression(options)) continue;
+          const types = options.getProperty('types');
+          if (!types || !Node.isPropertyAssignment(types)) continue;
+          const array = types.getInitializer();
+          if (!array || !Node.isArrayLiteralExpression(array)) continue;
+          const values = array.getElements();
+          if (values.some(Node.isSpreadElement)) continue;
+          const params = method.getParameters();
+          let wrong = values.length !== params.length;
+          if (!wrong) values.forEach((value, index) => {
+            const annotation = params[index].getTypeNode();
+            if (!Node.isIdentifier(value) || !annotation) return;
+            const primitive: Record<string, string> = { NumberKeyword: 'Number', StringKeyword: 'String', BooleanKeyword: 'Boolean' };
+            const constructor = primitive[annotation.getKindName()];
+            if (constructor) wrong ||= value.getText() !== constructor;
+            else if (Node.isTypeReference(annotation)) {
+              const left = value.getSymbol();
+              const right = annotation.getTypeName().getSymbol();
+              if (left && right) wrong ||= (left.getAliasedSymbol() ?? left) !== (right.getAliasedSymbol() ?? right);
+            }
+          });
+          if (wrong) diagnostics.push({ ruleId: this.id, severity: this.severity, file: relPath(source, root), line: decorator.getStartLineNumber(), message: 'Validated types do not match the method parameter positions.', suggestion: 'Include primitive route parameters and DTO constructors in method parameter order.', reference: this.reference, deterministic: true });
+        }
+      }
+      return diagnostics;
+    },
+  },
+
   {
     id: 'KOATTY_DTO_LOADER_NAME',
     description:
@@ -109,9 +167,9 @@ export const CHECK_RULES: CheckRule[] = [
           const name = named.getName();
           if (name !== 'IOC' && name !== 'IOCContainer') continue;
           // 只在使用（导出子句之外）时报告，纯 re-export 不算应用代码用法
-          const used = source
-            .getDescendantsOfKind(SyntaxKind.Identifier)
-            .some((id) => id.getText() === name && id.getParent()?.getKind() !== SyntaxKind.ImportSpecifier);
+          const binding = named.getAliasNode() ?? named.getNameNode();
+          const used = source.getDescendantsOfKind(SyntaxKind.Identifier).some((id) =>
+            id.getSymbol() === binding.getSymbol() && !id.getFirstAncestorByKind(SyntaxKind.ImportDeclaration) && !id.getFirstAncestorByKind(SyntaxKind.ExportDeclaration));
           if (!used) continue;
           diagnostics.push({
             ruleId: this.id,
@@ -141,24 +199,20 @@ export const CHECK_RULES: CheckRule[] = [
       if (!/^src\/controller\/.+\.ts$/.test(rel)) return diagnostics;
       for (const cls of source.getClasses()) {
         const controller = cls.getName() ?? path.basename(rel, '.ts');
+        const controllerDecorator = cls.getDecorators().find((d) => decoratorName(d, ['koatty', 'koatty_router', 'koatty_core']) === 'Controller');
+        if (!controllerDecorator) continue;
+        const base = controllerDecorator.getCallExpression()?.getArguments()[0];
+        if (base && !Node.isStringLiteral(base)) continue;
+        const prefix = base && Node.isStringLiteral(base) ? base.getLiteralText() : '';
         for (const method of cls.getMethods()) {
           for (const decorator of method.getDecorators()) {
-            const name = decorator.getName();
-            if (!MAPPING_DECORATORS.test(name)) continue;
-            const call = decorator.getCallExpression();
-            const args = call?.getArguments() ?? [];
-            const first = args[0];
-            // 仅收集静态字符串字面量路径；模板字符串/表达式视为动态，不下结论
+            const name = decoratorName(decorator, ['koatty', 'koatty_router', 'koatty_core']);
+            if (!name || !MAPPING_DECORATORS.test(name) || name === 'RequestMapping') continue;
+            const first = decorator.getCallExpression()?.getArguments()[0];
             if (first && !Node.isStringLiteral(first)) continue;
             const routePath = first && Node.isStringLiteral(first) ? first.getLiteralText() : '/';
-            const httpMethod = name.replace('Mapping', '').toUpperCase();
-            facts.push({
-              file: rel,
-              line: method.getStartLineNumber(),
-              method: httpMethod === 'REQUEST' ? 'ALL' : httpMethod,
-              path: routePath,
-              controller,
-            });
+            const fullPath = '/' + [prefix, routePath].map((part) => part.replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/');
+            facts.push({ file: rel, line: method.getStartLineNumber(), method: name.replace('Mapping', '').toUpperCase(), path: fullPath, controller });
           }
         }
       }
@@ -171,7 +225,7 @@ export const CHECK_RULES: CheckRule[] = [
       for (const route of facts) {
         const key = `${route.method} ${route.path}`;
         const previous = seen.get(key);
-        if (previous && previous.controller !== route.controller) {
+        if (previous) {
           const pairKey = [previous.file, route.file, key].sort().join('|');
           if (reported.has(pairKey)) continue;
           reported.add(pairKey);
@@ -232,7 +286,14 @@ export function runChecks(root: string, options: CheckRunOptions = {}): CheckDia
   }
 
   const morph = new MorphProject({ useInMemoryFileSystem: false, skipAddingFilesFromTsConfig: true });
-  morph.addSourceFilesAtPaths(path.join(srcDir, '**', '*.ts').split(path.sep).join('/'));
+  const walk = (directory: string): void => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const file = resolveInside(root, path.join(directory, entry.name));
+      if (entry.isDirectory()) walk(file);
+      else if (entry.isFile() && file.endsWith('.ts') && !file.endsWith('.d.ts')) morph.addSourceFileAtPath(file);
+    }
+  };
+  walk(srcDir);
 
   const facts: RouteFact[] = [];
   const diagnostics: CheckDiagnostic[] = [];

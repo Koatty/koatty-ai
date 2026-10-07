@@ -1,0 +1,70 @@
+{
+  "id": "component",
+  "version": 1,
+  "title": "component",
+  "description": "Compose the public koatty_cli generator without copying templates.",
+  "koattyCliApi": "renderComponent",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "enum": [
+          "controller",
+          "service",
+          "dto",
+          "model",
+          "aspect",
+          "middleware",
+          "plugin",
+          "exception",
+          "proto"
+        ]
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "options": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "enum": [
+              "http",
+              "grpc",
+              "websocket",
+              "graphql"
+            ]
+          },
+          "interface": {
+            "type": "boolean"
+          },
+          "orm": {
+            "enum": [
+              "typeorm",
+              "thinkorm"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "type",
+      "name"
+    ],
+    "additionalProperties": false
+  },
+  "example": {
+    "type": "service",
+    "name": "billing"
+  },
+  "pending": [
+    "Implement business methods and relevant behavior tests."
+  ],
+  "references": [
+    "skills/koatty/references/project.md"
+  ],
+  "unsupported": [
+    "Options outside the schema are rejected."
+  ]
+}
